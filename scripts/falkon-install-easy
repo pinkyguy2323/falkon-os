@@ -36,7 +36,6 @@ detect_os_on() { # $1=/dev/sda -> "Windows 11 (/dev/sda1)" или ""
     lbl=$(lsblk -n -o LABEL "$part" 2>/dev/null || true)
     [[ "$fst" == "ntfs" ]] && out+="Windows? ($part $lbl); "
     [[ "$fst" =~ ext4|btrfs|xfs ]] && out+="Linux? ($part $lbl); "
-    [[ "$lbl" =~ -i EFI|boot ]] && true
   done
   echo "$out"
 }

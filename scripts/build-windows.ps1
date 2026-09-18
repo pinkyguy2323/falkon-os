@@ -16,7 +16,7 @@ try { docker info | Out-Null } catch {
 }
 
 # 2. Build inside archlinux:latest (has mkarchiso)
-$DockerCmd = "set -e; pacman -Sy --noconfirm archiso git reflector rsync squashfs-tools dosfstools; cd /build; chmod +x scripts/build-iso.sh scripts/falkon-*; ./scripts/build-iso.sh " + $Flavor
+$DockerCmd = "set -e; pacman -Sy --noconfirm archiso git reflector rsync squashfs-tools dosfstools grub syslinux; cd /build; chmod +x scripts/build-iso.sh scripts/falkon-*; ./scripts/build-iso.sh " + $Flavor
 
 Write-Host "[Falkon] Building in Docker (10-20 min, downloads ~1.5 GB)..." -ForegroundColor Green
 docker run --rm --privileged `

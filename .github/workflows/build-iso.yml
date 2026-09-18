@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Поставить зависимости
-        run: pacman -Sy --noconfirm archiso git reflector rsync squashfs-tools dosfstools
+        run: pacman -Sy --noconfirm archiso git reflector rsync squashfs-tools dosfstools grub syslinux
 
       - name: Собрать ISO
         run: |

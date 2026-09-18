@@ -66,8 +66,8 @@ detect_wifi() {
   fi
   if echo "$NET" | grep -qi -E 'realtek.*(8821|8852|8723|8192)'; then
     say "Найден Realtek WiFi"
-    PKGS+=(rtw88-dkms-git rtw89-dkms-git || true)
-    # yay-версии; если нет AUR - пропустим, поставим из ядра
+    # AUR-пакеты ставит install_pkgs через yay; из официальных берём прошивку
+    PKGS+=(rtw88-dkms-git rtw89-dkms-git)
     PKGS+=(linux-firmware-realtek)
   fi
   # Intel / Mediatek обычно уже в linux-firmware, но доустановим:

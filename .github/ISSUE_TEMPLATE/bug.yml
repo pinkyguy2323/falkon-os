@@ -1,0 +1,21 @@
+name: Bug report
+description: Report a broken build, installer or script
+labels: [bug]
+body:
+  - type: input
+    id: edition
+    attributes:
+      label: Edition (desktop / tiling / core)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Steps to reproduce + full error text / photo
+    validations:
+      required: true
+  - type: input
+    id: hw
+    attributes:
+      label: Hardware or VM (e.g. VirtualBox 7, ThinkPad T480, RTX 3060)

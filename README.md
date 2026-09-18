@@ -1,120 +1,153 @@
-# Falkon OS 1.0 "Swift" — Arch-based, удобно, быстро, твоё
+# Falkon OS — Arch Linux, который просто работает
 
-Собственный дистрибутив на базе **Arch Linux**. 100% совместимость с Arch (pacman, AUR, yay, Wiki).
+![edition](https://img.shields.io/badge/editions-desktop_%7C_tiling_%7C_core-blue)
+![base](https://img.shields.io/badge/base-Arch_Linux-1793D1)
+![license](https://img.shields.io/badge/license-MIT-green)
 
-## Главная фишка
-**Удобство:** драйверы ставятся сами (`falkon-drivers`), установка с графическим интерфейсом (Calamares), ОЧЕНЬ КРУТАЯ кастомизация (`falkon-customizer` + 45 тем + `falkon-themes`).
-**Предустановлено:** ghostty + vscode + firefox + steam + файловый менеджер (dolphin/thunar) + discord/telegram + obs/gimp/libreoffice.
+> **Falkon OS** — любительский дистрибутив на базе Arch Linux. Та же скорость и свежесть Arch, но без боли: драйверы ставятся сами, установка — в пару кликов, а оформление меняется одной командой.
 
-## 3 редакции
+*Скриншоты: положи свои фото в папку `screenshots/` — desktop, tiling, установщик.*
 
-| Редакция | Что это | RAM в простое | Для кого |
+---
+
+## Фишки
+
+| Фишка | Что это значит для тебя |
+|---|---|
+| **Драйверы сами** | `falkon-drivers` находит NVIDIA / AMD / Intel, Wi-Fi (включая капризный Broadcom и Realtek), принтеры и виртуалки — и ставит нужное. Переставил видеокарту? `sudo falkon-drivers` — и всё |
+| **Установка в пару кликов** | `falkon-install-easy`: выбираешь диск из понятного списка. Если на диске замечена Windows или другой Linux — спросит «очистить весь диск?» и только потом ставит. Флешку с Live сам прячет, чтобы ты случайно не снёс её |
+| **45 тем из коробки** | Одна команда — и тема меняется сразу везде: окна, терминал, панель, меню. `falkon-themes apply "Dracula"` или окно `falkon-customizer` с поиском |
+| **Обои в 1–2 клика** | `Super+W` — следующие обои, `Super+Shift+W` — выбор окном. Свои картинки просто кидай в `~/Pictures/Wallpapers` |
+| **12 языков** | Русский, украинский, английский, китайский, японский, испанский, французский, немецкий, португальский, арабский, хинди, турецкий. Переключение: `falkon-lang` |
+| **Софт уже стоит** | Терминал Ghostty, VS Code, Firefox, Steam + Lutris, файловый менеджер, Discord, Telegram, OBS, GIMP, LibreOffice |
+| **Лёгкая и быстрая** | Ядро `linux-zen`, сжатие памяти zram, быстрые зеркала. Core-редакция ест ~300 МБ оперативки — летает даже на 2 ГБ |
+| **Честный Arch** | Никаких левых репозиториев по умолчанию. Весь Arch Wiki, AUR и `yay` работают 1:1 |
+
+## Три редакции — выбери свою
+
+| | Desktop | Tiling | Core |
 |---|---|---|---|
-| **Desktop** | Классический оконный стол (KDE Plasma + SDDM) | ~700-900 МБ | Все, кто хочет "просто работает" |
-| **Tiling** | Как Omarchy OS: Hyprland + Waybar + Wofi, тайлинг, всё с клавиатуры | ~500-700 МБ | Прогеры, любители кастома |
-| **Core** | Чистая консоль, только базовые CLI (nvim, tmux, yazi, mpv, links). Без X/Wayland | **~250-400 МБ** (на 2 ГБ летает) | Серверы, слабые ПК, минималисты |
+| Что это | Классический рабочий стол (KDE Plasma) | Тайлинг как Omarchy (Hyprland) — всё с клавиатуры | Чистая консоль, только базовые программы |
+| Для кого | «Хочу, чтобы просто работало» | Программисты и любители кастома | Слабые ПК, серверы, минималисты |
+| RAM в простое | ~700–900 МБ | ~500–700 МБ | **~250–400 МБ** |
+| Файл | `falkon-desktop-*.iso` | `falkon-tiling-*.iso` | `falkon-core-*.iso` |
 
-Переключение: Core -> Desktop в любой момент одной командой:
+Передумал? GUI ставится поверх Core одной командой:
 ```bash
-sudo pacman -S plasma-desktop sddm && sudo systemctl enable sddm
-# или tiling:
-sudo pacman -S hyprland kitty waybar wofi
+sudo pacman -S plasma-desktop sddm && sudo systemctl enable sddm   # классика
+sudo pacman -S hyprland kitty waybar wofi                          # тайлинг
 ```
 
-## Быстрый старт (сборка ISO)
+---
 
-Собирать **только на Arch Linux** (или в Docker `archlinux:latest`):
+## Установка — пошаговый гайд
+
+### Шаг 0. Скачай ISO
+Вкладка **Releases** этого репозитория → скачай нужную редакцию. Сверь контрольную сумму, если хочешь:
+```bash
+sha256sum falkon-*.iso
+```
+
+### Шаг 1а. Пробуешь в виртуалке (безопасно, Windows не тронута)
+- **VirtualBox:** тип Linux → Arch 64-bit, 4 ГБ RAM, 2 ядра, видео 128 МБ + 3D, **включить EFI** (Система → Материнская плата), подключить ISO и старт
+- **VMware:** гость Linux 6.x 64-bit, EFI, 4 ГБ RAM
+- Драйверы гостевых систем уже внутри ISO — всё заведётся само
+
+### Шаг 1б. Ставишь на настоящий ПК
+Запиши ISO на флешку через **Ventoy**, **Rufus** или **balenaEtcher**, загрузись с неё (обычно F12 / F8 / Del → Boot Menu). Поддерживаются и UEFI, и старые BIOS.
+
+### Шаг 2. Запусти установщик
+На рабочем столе — иконка **«Установить Falkon (Просто)»**. Или в терминале:
+```bash
+sudo falkon-install-easy
+```
+
+### Шаг 3. Ответь на вопросы (их мало)
+1. **Диск** — список человеческим языком: размер, модель и что сейчас на диске. Флешка с Live скрыта, снести её нельзя.
+2. **Нашлась Windows или другой Linux?** Установщик покажет что именно и спросит: *«Очистить ВЕСЬ диск и поставить Falkon?»* — с двойным подтверждением. Не согласен — просто выбери другой диск, ничего не тронуто.
+3. **Пользователь, пароль, имя ПК, редакция, язык** — одна форма.
+4. Дальше ~10–20 минут всё само: разметка (EFI + Btrfs), система, загрузчик, драйверы, софт. В конце — «Готово, перезагрузись».
+
+### Шаг 4. Первый вход
+Вытащи флешку / отключи ISO в виртуалке, перезагрузись, войди. Откроется **Falkon Welcome**: быстрые зеркала, драйверы, темы, Flatpak — всё в одном окне.
+
+---
+
+## После установки — самое нужное
+
+**Tiling (Hyprland), горячие клавиши:**
+
+| Клавиши | Действие |
+|---|---|
+| `Super+Enter` | Терминал Ghostty |
+| `Super+D` | Меню программ |
+| `Super+W` / `Super+Shift+W` | Следующие обои / выбор обоев |
+| `Super+T` | Кастомизация (темы, эффекты) |
+| `Super+Q` | Закрыть окно |
+| `Super+1…5` | Рабочие столы |
+| `Alt+Shift` | Переключить язык ввода |
+
+**Команды на все случаи:**
+```bash
+falkon-welcome       # центр управления: зеркала, драйверы, темы, Flatpak
+falkon-customizer    # 45 тем + blur, зазоры, скругления, панель сверху/снизу, пресеты
+falkon-themes apply "Tokyo Night"   # тема одной строкой (везде сразу)
+falkon-wallpaper next               # следующие обои
+falkon-lang                         # смена языка из 12
+sudo falkon-drivers  # пересканировать железо
+sudo falkon-tweaks   # применить ускорения заново
+```
+
+---
+
+## Частые вопросы
+
+**Потянет ли мой старый ноутбук с 2–4 ГБ?**
+Да. Бери Core (~300 МБ) или Tiling (~600 МБ). Desktop с KDE тоже влезет в 4 ГБ, в 2 ГБ будет впритык — тогда точно Tiling/Core.
+
+**А Windows не сотрётся сама?**
+Нет. Без твоего двойного «да» установщик ничего не форматирует. Если на диске есть Windows — он прямо так и напишет и спросит.
+
+**NVIDIA заведётся?**
+Да, `falkon-drivers` ставит `nvidia-dkms` + Wayland-обвязку и пересобирает initramfs. После установки перезагрузись.
+
+**Secure Boot?**
+Пока выключи его в BIOS (как у всех Arch-дистров без shim). В планах — подписать загрузчик.
+
+**Это «настоящий» Arch?**
+Да. `sudo pacman -Syu`, AUR через `yay`, все гайды с Arch Wiki — всё работает.
+
+---
+
+## Для разработчиков
 
 ```bash
-git clone <этот-репо> && cd falkon-os
-chmod +x scripts/*.sh scripts/falkon-*
-sudo ./scripts/build-iso.sh desktop  # или tiling / core / all
-# ISO появится в out/
+git clone https://github.com/<user>/falkon-os.git && cd falkon-os
+# На Arch:
+sudo ./scripts/build-iso.sh all            # ISO в out/
+# На Windows (нужен Docker Desktop):
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 desktop
+# ISO автоматически собирается в Actions по тегу: git tag v1.0; git push origin v1.0
 ```
 
-Запись на флешку:
-```bash
-sudo dd bs=4M if=out/falkon-desktop-*.iso of=/dev/sdX status=progress oflag=sync
-# или Ventoy / Balena Etcher
-```
-
-## Установка
-
-1. Загрузись с флешки (UEFI + BIOS поддерживаются).
-2. **Desktop / Tiling:** открой Calamares (иконка Install), выбери язык/диск/пользователя. Драйверы и твики применятся сами в конце.
-3. **Core:** `sudo falkon-install` — ответь на 4 вопроса, всё остальное само.
-
-## Что внутри
-
-- Ядро `linux-zen` + `zram` (zstd) + `swappiness=180` — отзывчиво даже на 2 ГБ.
-- `pacman`: ParallelDownloads=5, Color, multilib включён.
-- `yay-bin` из коробки, опционально Chaotic-AUR и Flatpak через `falkon-welcome`.
-- `reflector` для быстрых зеркал, `firewalld` + `apparmor`, `fstrim.timer` для SSD.
-- AUR/Arch Wiki работают 1:1 — это всё ещё Arch.
+Профиль собирается поверх **штатного releng** установленного archiso — загрузчики и bootmode всегда совпадают с версией archiso, сборка не ломается от обновлений.
 
 ```
-falkon-os/
-  profiles/desktop/  # KDE, оконный
-  profiles/tiling/   # Hyprland как Omarchy
-  profiles/core/     # консоль
-  profiles/base-packages.txt
-  profiles/pacman.conf
-  scripts/build-iso.sh
-  scripts/falkon-drivers  # авто-драйверы: NVIDIA/AMD/Intel/Broadcom/Realtek/принтеры/ВМ
-  scripts/falkon-tweaks   # производительность
-  scripts/falkon-welcome  # GUI/TUI центр кастомизации
-  scripts/falkon-install  # консольный установщик
-  calamares/              # графический установщик
-  airootfs/               # оверлей live-системы (Hyprland-конфиг, motd, bashrc)
+profiles/desktop|tiling|core/  # метаданные + списки пакетов редакций
+profiles/base-packages.txt     # общее для всех
+scripts/falkon-*               # драйверы, твики, темы, обои, языки, установщики
+airootfs/                      # оверлей live-системы (конфиг Hyprland, 45 тем, языки)
+calamares/                     # графический установщик
+.github/workflows/             # автобилд ISO в облаке
 ```
 
-## Команды после установки
-
-```bash
-falkon-welcome      # кастомизация: зеркала, темы, Chaotic, Flatpak
-sudo falkon-drivers # пересканировать железо (напр. после смены GPU)
-sudo falkon-tweaks  # применить perf-твики заново
-fastfetch           # проверить систему
-```
-
-## Как получить исошник
-
-**Вариант А — скачать готовый (рекомендую):**
-1. Открой страницу репозитория на GitHub → вкладка `Releases`
-2. Скачай `falkon-desktop-*.iso` (или tiling/core)
-3. Проверь: `sha256sum *.iso`, запиши на флешку через Ventoy/Rufus/balenaEtcher
-
-**Вариант Б — собрать самому:**
-- На Arch: `sudo ./scripts/build-iso.sh all` → ISO в `out/`
-- На Windows: `powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 desktop` (нужен Docker Desktop)
-
-> ISO в git НЕ коммитится (весит ~2 ГБ, GitHub режет файлы >100 МБ). ISO живёт только в `Releases`, исходники — в репо. Так делают все любительские дистры.
-
-## Как выложить на GitHub как любительский проект
-
-```powershell
-# 1. Поставь git и gh: winget install Git.Git GitHub.cli
-# 2. Залогинься: gh auth login
-# 3. Из папки falkon-os:
-powershell -ExecutionPolicy Bypass -File scripts/publish-github.ps1
-# скрипт сам сделает git init, коммит и gh repo create + push
-```
-
-Дальше для красоты:
-- Добавь описание + топики `arch-linux distro hyprland kde` в About репозитория
-- Включи Issues + Discussions (любительские проекты так живут)
-- Первый релиз: `git tag v1.0; git push origin v1.0` → GitHub Actions сам соберёт ISO (~20 мин) и прикрепит к Releases. Файл: `.github/workflows/build-iso.yml:1`
-- Скриншоты кинь в `screenshots/` и покажи в README — скачиваний будет в разы больше
-
-## Совместимость с Arch
-
-Ничего не ломаем: нет своих репозиториев по умолчанию, нет форков пакетов. Любой гайд с Arch Wiki работает. Кастомизации (темы, dotfiles) с Arch встают 1:1.
+Баги — в **Issues** (есть шаблон), идеи — в **Discussions**.
 
 ## Дорожная карта
 
-- [ ] Свой репозиторий `falkon` (пока пакеты лежат локально в скриптах)
-- [ ] Secure Boot (shim)
-- [ ] Оffline NVIDIA ISO
-- [ ] Falkon Store (GUI над pacman+flatpak+AUR)
+- [ ] Secure Boot из коробки
+- [ ] Отдельный offline-NVIDIA ISO
+- [ ] Falkon Store (магазин поверх pacman + Flatpak + AUR)
+- [ ] Свои обои под каждую из 45 тем
 
-Лицензия: MIT (свои скрипты). База: Arch Linux (пакеты — под своими лицензиями).
+Лицензия MIT (свои скрипты). База Arch Linux — пакеты под своими лицензиями.
