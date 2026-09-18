@@ -1,7 +1,7 @@
 # Falkon OS - build ISO from Windows via Docker, no Linux install needed (ASCII only)
 # Requires: Windows 10/11 + Docker Desktop (https://www.docker.com/products/docker-desktop/)
 # Run: powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 desktop
-param([string]$Flavor = "all")
+param([string]$Flavor = "falkon")
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot

@@ -68,12 +68,13 @@ pick_disk_gui() {
 }
 
 do_install() { # $1=disk $2=user $3=pass $4=host $5=edition $6=lang
-  local DISK="$1" USER="$2" PASS="$3" HOST="$4" ED="$5" LANGCODE="$6"
-  say "Ставлю на $DISK (редакция $ED, язык $LANGCODE)..."
+  local DISK="$1" USER="$2" PASS="$3" HOST="$4" LOOK="$5" LANGCODE="$6"
+  [[ "$LOOK" != "kde" && "$LOOK" != "hypr" && "$LOOK" != "cmd" ]] && LOOK="kde"
+  say "Ставлю на $DISK (оформление $LOOK, язык $LANGCODE)..."
   # Имена разделов (nvme/mmcblk -> p1)
   if [[ "$DISK" =~ nvme|mmcblk ]]; then EFI="${DISK}p1"; ROOT="${DISK}p2"; else EFI="${DISK}1"; ROOT="${DISK}2"; fi
 
-  say "[1/8] Очистка таблицы + разметка (EFI 1G + Btrfs корень)..."
+  say "[1/9] Очистка таблицы + разметка (EFI 1G + Btrfs корень)..."
   wipefs -a "$DISK"
   parted -s "$DISK" mklabel gpt mkpart ESP fat32 1MiB 1025MiB set 1 esp on mkpart primary btrfs 1025MiB 100% || { err "Разметка не удалась"; exit 1; }
   partprobe "$DISK"; sleep 2
@@ -82,11 +83,11 @@ do_install() { # $1=disk $2=user $3=pass $4=host $5=edition $6=lang
   mount "$ROOT" /mnt || { err "mount fail"; exit 1; }
   mkdir -p /mnt/boot; mount "$EFI" /mnt/boot || { err "mount EFI fail"; exit 1; }
 
-  say "[2/8] База (pacstrap)..."
+  say "[2/9] База (pacstrap)..."
   pacstrap -K /mnt base base-devel linux-zen linux-firmware amd-ucode intel-ucode networkmanager sudo neovim git reflector zram-generator grub efibootmgr os-prober || { err "pacstrap fail, проверь интернет"; exit 1; }
   genfstab -U /mnt >> /mnt/etc/fstab
 
-  say "[3/8] Язык/пользователь/загрузка..."
+  say "[3/9] Язык/пользователь/загрузка..."
   arch-chroot /mnt /bin/bash <<EOF
 set -e
 ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
@@ -115,11 +116,11 @@ EOF
 
   # Bootloader: UEFI -> systemd-boot, иначе GRUB (без багов на старых ПК и ВМ)
   if [[ -d /sys/firmware/efi ]]; then
-    say "[4/8] systemd-boot (UEFI)..."
+    say "[4/9] systemd-boot (UEFI)..."
     arch-chroot /mnt bootctl install
     UUID=$(blkid -s UUID -o value "$ROOT")
     cat > /mnt/boot/loader/entries/falkon.conf <<EOF2
-title Falkon OS ($ED)
+title Falkon OS ($LOOK)
 linux /vmlinuz-linux-zen
 initrd /amd-ucode.img
 initrd /intel-ucode.img
@@ -127,12 +128,12 @@ initrd /initramfs-linux-zen.img
 options root=UUID=$UUID rw quiet splash
 EOF2
   else
-    say "[4/8] GRUB (BIOS/ВМ без EFI)..."
+    say "[4/9] GRUB (BIOS/ВМ без EFI)..."
     arch-chroot /mnt grub-install --target=i386-pc "$DISK"
     arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
   fi
 
-  say "[5/8] Инструменты Falkon + драйверы + твики..."
+  say "[5/9] Инструменты Falkon + драйверы + твики..."
   # Все falkon-* в установленную систему (иначе там не будет ни тем, ни обновлений)
   for t in /usr/bin/falkon-*; do cp -a "$t" /mnt/usr/bin/ 2>/dev/null || true; done
   chmod 755 /mnt/usr/bin/falkon-* 2>/dev/null || true
@@ -142,25 +143,29 @@ EOF2
   cp -a /usr/share/applications/falkon-*.desktop /mnt/usr/share/applications/ 2>/dev/null || true
   cp -a /usr/lib/systemd/system/falkon-update-apply.service /mnt/usr/lib/systemd/system/ 2>/dev/null || true
   # Штамп версии с Live (чтобы falkon-update знал, откуда обновляться)
-  cp -a /etc/falkon-release /mnt/etc/falkon-release 2>/dev/null || echo -e "FALKON_VERSION=unknown\nFALKON_EDITION=$ED" > /mnt/etc/falkon-release
-  sed -i "s/^FALKON_EDITION=.*/FALKON_EDITION=$ED/" /mnt/etc/falkon-release
+  cp -a /etc/falkon-release /mnt/etc/falkon-release 2>/dev/null || echo "FALKON_VERSION=unknown" > /mnt/etc/falkon-release
+  echo "$LOOK" > /mnt/etc/falkon-look
+  cp -a /etc/falkon-look /mnt/etc/falkon-look 2>/dev/null || true
   arch-chroot /mnt falkon-drivers --auto || true
   arch-chroot /mnt falkon-tweaks || true
   arch-chroot /mnt systemctl enable falkon-update-apply.service || true
 
-  say "[6/8] Редакция $ED + софт (ghostty/vscode/firefox)..."
-  if [[ "$ED" == "desktop" ]]; then
-    arch-chroot /mnt pacman -S --needed --noconfirm plasma-desktop sddm dolphin konsole ghostty firefox code nodejs npm || true
-    arch-chroot /mnt systemctl enable sddm || true
-  elif [[ "$ED" == "tiling" ]]; then
-    arch-chroot /mnt pacman -S --needed --noconfirm hyprland kitty ghostty waybar wofi thunar firefox code nodejs npm sddm || true
-    arch-chroot /mnt systemctl enable sddm || true
-  else
-    arch-chroot /mnt pacman -S --needed --noconfirm nodejs npm || true
-    say "Core: без GUI (<400МБ RAM). Доставить позже: sudo pacman -S plasma-desktop"
-  fi
+  say "[6/9] Графика: ОБА стека сразу (KDE + Hyprland), оформление выберешь ниже..."
+  arch-chroot /mnt pacman -S --needed --noconfirm \
+    plasma-desktop plasma-nm plasma-pa plasma-workspace sddm \
+    dolphin konsole kate ark gwenview okular kdeconnect print-manager yakuake spectacle \
+    kvantum breeze-gtk \
+    hyprland hyprpaper hyprlock hypridle hyprpicker xdg-desktop-portal-hyprland \
+    waybar wofi rofi-wayland kitty alacritty mako swaync grim slurp swappy wl-clipboard cliphist \
+    thunar thunar-volman thunar-archive-plugin tumbler file-roller \
+    ghostty firefox firefox-i18n-ru code lutris mangohud gamemode vlc elisa gimp mpv imv \
+    zathura zathura-pdf-mupdf pavucontrol helvum \
+    nwg-look lxappearance qt5ct qt6ct kvantum-qt5 papirus-icon-theme \
+    ttf-jetbrains-mono-nerd ttf-fira-code noto-fonts noto-fonts-emoji otf-font-awesome \
+    yad fastfetch mesa vulkan-icd-loader libva-mesa-driver \
+    nodejs npm || true
 
-  say "[7/8] yay (AUR) + AI-ассистенты (Claude Code, Codex)..."
+  say "[7/9] yay (AUR) + AI-ассистенты (Claude Code, Codex)..."
   arch-chroot /mnt /bin/bash <<EOF3 || true
 set -e
 echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-falkon-tmp
@@ -174,7 +179,15 @@ npm i -g @anthropic-ai/claude-code @openai/codex
 echo "AI: claude + codex установлены (запуск: claude / codex)"
 EOF3
 
-  say "[8/8] Финал..."
+  say "[8/9] Оформление по умолчанию: $LOOK..."
+  arch-chroot /mnt falkon-look "$LOOK" || {
+    # запасной путь без falkon-look (если что-то пошло не так с копированием)
+    if [[ "$LOOK" == "cmd" ]]; then arch-chroot /mnt systemctl disable sddm || true
+    else arch-chroot /mnt systemctl enable sddm || true; fi
+    echo "$LOOK" > /mnt/etc/falkon-look
+  }
+
+  say "[9/9] Финал..."
   umount -R /mnt
   say "ГОТОВО. Вытащи флешку и перезагрузись. Логин: $USER. Лог: $LOG"
 }
@@ -197,20 +210,21 @@ main() {
   else
     confirm_gui "Ставить Falkon на <b>$DISK</b>?\nДиск будет очищен." || exit 0
   fi
-  # Данные пользователя
+  # Данные пользователя + оформление (ОДНА система, три лица)
   if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
-    vals=$(yad --form --title="Пользователь Falkon" --text="Придумай пользователя:" --field="Имя пользователя" "falkon" --field="Имя ПК" "falkon-pc" --field="Редакция:CB" "desktop!tiling!core" --field="Язык:CB" "ru_RU.UTF-8!uk_UA.UTF-8!en_US.UTF-8!zh_CN.UTF-8!ja_JP.UTF-8!es_ES.UTF-8!fr_FR.UTF-8!de_DE.UTF-8" --field="Пароль:H" "")
+    vals=$(yad --form --title="Пользователь Falkon" --text="Придумай пользователя + выбери оформление:" --field="Имя пользователя" "falkon" --field="Имя ПК" "falkon-pc" --field="Оформление:CB" "Классика (KDE)!Тайлинг (Hyprland)!Консоль (без графики)" --field="Язык:CB" "ru_RU.UTF-8!uk_UA.UTF-8!en_US.UTF-8!zh_CN.UTF-8!ja_JP.UTF-8!es_ES.UTF-8!fr_FR.UTF-8!de_DE.UTF-8" --field="Пароль:H" "")
     [[ -z "$vals" ]] && exit 0
-    IFS='|' read -r USER HOST ED LANGCODE PASS <<< "$vals"
+    IFS='|' read -r USER HOST LOOKNAME LANGCODE PASS <<< "$vals"
+    case "$LOOKNAME" in "Тайлинг"*) LOOK="hypr";; "Консоль"*) LOOK="cmd";; *) LOOK="kde";; esac
   else
     read -rp "Пользователь [falkon]: " USER; USER=${USER:-falkon}
     read -rp "Имя ПК [falkon-pc]: " HOST; HOST=${HOST:-falkon-pc}
-    read -rp "Редакция desktop/tiling/core [desktop]: " ED; ED=${ED:-desktop}
+    read -rp "Оформление kde/hypr/cmd [kde]: " LOOK; LOOK=${LOOK:-kde}
     read -rp "Локаль [ru_RU.UTF-8]: " LANGCODE; LANGCODE=${LANGCODE:-ru_RU.UTF-8}
     read -rsp "Пароль: " PASS; echo
     [[ -z "$PASS" ]] && { err "Пустой пароль нельзя"; exit 1; }
   fi
-  do_install "$DISK" "$USER" "$PASS" "$HOST" "$ED" "$LANGCODE"
+  do_install "$DISK" "$USER" "$PASS" "$HOST" "$LOOK" "$LANGCODE"
   command -v yad >/dev/null && yad --info --text="Готово! Перезагрузись." --timeout=5 || true
 }
 

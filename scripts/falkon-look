@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# falkon-look - переключение оформления ОДНОЙ системы Falkon OS
+#   Оформления: kde = Классика (KDE Plasma) | hypr = Тайлинг (Hyprland) | cmd = Консоль (без графики)
+#   У каждого графического - свои 25 тем (falkon-themes берёт нужный набор сам).
+# Использование:
+#   falkon-look status   # что сейчас
+#   sudo falkon-look kde | hypr | cmd
+#   falkon-look gui      # окно выбора
+set -euo pipefail
+
+LOOK_FILE="/etc/falkon-look"
+current() { cat "$LOOK_FILE" 2>/dev/null || echo "kde"; }
+
+pick_session() { # plasma|hypr -> имя .desktop без расширения
+  local want="$1" f
+  f=$(ls /usr/share/wayland-sessions/*.desktop /usr/share/xsessions/*.desktop 2>/dev/null | grep -i "$want" | head -1 || true)
+  [[ -n "$f" ]] && basename "$f" .desktop || echo ""
+}
+
+set_look() { # $1=kde|hypr|cmd
+  local look="$1"
+  [[ $EUID -eq 0 ]] || { echo "Нужно root: sudo falkon-look $look"; exit 1; }
+  case "$look" in
+    kde|hypr)
+      local want="plasma"; [[ "$look" == "hypr" ]] && want="hypr"
+      local sess; sess=$(pick_session "$want")
+      [[ -z "$sess" ]] && { echo "Сессия $want не найдена. Доустанови: sudo pacman -S plasma-desktop  (или hyprland)"; exit 1; }
+      mkdir -p /etc/sddm.conf.d
+      printf '[Autologin]\nSession=%s.desktop\n' "$sess" > /etc/sddm.conf.d/falkon-look.conf
+      systemctl enable sddm 2>/dev/null || true
+      echo "$look" > "$LOOK_FILE"
+      echo "[OK] Оформление: $look (сессия $sess). Темы: falkon-themes list  (25 штук)"
+      echo "Перезагрузись или перелогинься."
+      ;;
+    cmd)
+      systemctl disable sddm 2>/dev/null || true
+      echo "cmd" > "$LOOK_FILE"
+      echo "[OK] Оформление: консоль. Графика выключена, RAM ~300 МБ."
+      echo "Вернуть графику: sudo falkon-look kde  (или hypr)"
+      ;;
+    *) echo "falkon-look status|kde|hypr|cmd|gui"; exit 1;;
+  esac
+}
+
+gui() {
+  local names="Классика (KDE, 25 тем)|Тайлинг (Hyprland, 25 тем)|Консоль (без графики)"
+  local sel
+  if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    sel=$(echo "$names" | tr '|' '\n' | yad --list --title="Оформление Falkon OS" --text="Сейчас: $(current)\nОдна система - три лица. Переключение мгновенное:" --column="Оформление" --width=450 --height=280 --separator="")
+    [[ -z "$sel" ]] && exit 0
+  else
+    echo "Сейчас: $(current)"
+    echo "1) Классика (KDE)  2) Тайлинг (Hyprland)  3) Консоль"
+    read -rp "> " n
+    case "$n" in 1) sel="Классика (KDE, 25 тем)";; 2) sel="Тайлинг (Hyprland, 25 тем)";; 3) sel="Консоль (без графики)";; *) exit 0;; esac
+  fi
+  case "$sel" in
+    "Классика"*) xterm -e "sudo falkon-look kde; read -p 'Готово. Enter...'" 2>/dev/null || sudo falkon-look kde;;
+    "Тайлинг"*) xterm -e "sudo falkon-look hypr; read -p 'Готово. Enter...'" 2>/dev/null || sudo falkon-look hypr;;
+    *) xterm -e "sudo falkon-look cmd; read -p 'Готово. Enter...'" 2>/dev/null || sudo falkon-look cmd;;
+  esac
+}
+
+case "${1:-status}" in
+  status) echo "Оформление: $(current)  (kde=Классика / hypr=Тайлинг / cmd=Консоль)";;
+  kde|hypr|cmd) set_look "$1";;
+  gui) gui;;
+  *) echo "falkon-look status|kde|hypr|cmd|gui"; exit 1;;
+esac

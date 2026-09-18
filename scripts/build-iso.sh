@@ -11,7 +11,7 @@
 # имена bootmode всегда совпадают с версией archiso (v90+ их переименовал).
 set -euo pipefail
 
-FLAVOR="${1:-all}"
+FLAVOR="${1:-falkon}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$HERE/out"
 WORK="$HERE/work"
@@ -58,7 +58,7 @@ prepare_profile() {
   # --- airootfs: штатный releng + оверлей Falkon ---
   cp -a "$HERE/airootfs/." "$dst/airootfs/"
   mkdir -p "$dst/airootfs/usr/bin" "$dst/airootfs/usr/share/falkon/themes"
-  for t in falkon-drivers falkon-tweaks falkon-welcome falkon-themes falkon-customizer falkon-wallpaper falkon-lang falkon-install falkon-install-easy falkon-update; do
+  for t in falkon-drivers falkon-tweaks falkon-welcome falkon-themes falkon-customizer falkon-wallpaper falkon-lang falkon-install falkon-install-easy falkon-update falkon-look; do
     [[ -f "$HERE/scripts/$t" ]] && cp -a "$HERE/scripts/$t" "$dst/airootfs/usr/bin/$t"
   done
   cp -a "$HERE/airootfs/usr/share/falkon/themes/." "$dst/airootfs/usr/share/falkon/themes/" 2>/dev/null || true
@@ -95,10 +95,8 @@ build_one() {
 need_root
 install_deps
 
-if [[ "$FLAVOR" == "all" ]]; then
-  build_one desktop
-  build_one tiling
-  build_one core
-else
-  build_one "$FLAVOR"
+# Одна система - один ISO. Старые имена редакций маппим на него.
+if [[ "$FLAVOR" == "all" || "$FLAVOR" == "desktop" || "$FLAVOR" == "tiling" || "$FLAVOR" == "core" ]]; then
+  FLAVOR="falkon"
 fi
+build_one "$FLAVOR"

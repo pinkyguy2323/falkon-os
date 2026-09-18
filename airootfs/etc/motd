@@ -1,5 +1,5 @@
 --== Falkon OS ==--
 Arch-based. Быстро. Удобно. Твоё.
 
-Команды: falkon-welcome | falkon-customizer | falkon-drivers
-Установка: sudo falkon-install-easy (просто) или sudo falkon-install (вручную)
+Команды: falkon-welcome | falkon-look kde/hypr/cmd | falkon-customizer | falkon-update
+Установка: sudo falkon-install-easy (выбор диска + оформления)

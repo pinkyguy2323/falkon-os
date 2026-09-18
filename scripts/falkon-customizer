@@ -1,34 +1,40 @@
 #!/usr/bin/env bash
 # falkon-customizer - ОЧЕНЬ КРУТАЯ КАСТОМИЗАЦИЯ Falkon OS
-# Темы (45) + эффекты + пресеты + всё в одном окне
+# Темы текущего оформления (25+25) + эффекты + пресеты + всё в одном окне
 # GUI: yad | TUI: dialog/bash
 set -euo pipefail
 
 HYPR="$HOME/.config/hypr/hyprland.conf"
-THEMES_DB="/usr/share/falkon/themes/themes.conf"
-[[ -f "$(dirname "$0")/../airootfs/usr/share/falkon/themes/themes.conf" ]] && THEMES_DB="$(dirname "$0")/../airootfs/usr/share/falkon/themes/themes.conf"
 
-theme_list() { cut -d'|' -f2 "$THEMES_DB"; }
+# Темы берём у falkon-themes: он сам выбирает набор 25 по оформлению (kde/hypr)
+theme_list() { falkon-themes names; }
+
+cur_look() { cat /etc/falkon-look 2>/dev/null || echo "kde"; }
+# Тема пресета под текущее оформление (у каждого свои 25)
+preset_theme() { # $1=kde-тема $2=hypr-тема
+  if [[ "$(cur_look)" == "hypr" ]]; then falkon-themes apply "$2" >/dev/null
+  else falkon-themes apply "$1" >/dev/null; fi
+}
 
 apply_preset() { # $1 = preset
   case "$1" in
     "Минимализм")
       set_hypr "gaps_in" "2"; set_hypr "gaps_out" "5"; set_hypr "rounding" "0"
-      set_blur off; set_anim off; falkon-themes apply "Ghost White" >/dev/null;;
+      set_blur off; set_anim off; preset_theme "Ghost White" "Paper";;
     "Киберпанк")
-      falkon-themes apply "Cyberpunk Neon" >/dev/null
+      preset_theme "Cyberpunk Neon" "Neon Nights"
       set_hypr "gaps_in" "5"; set_hypr "gaps_out" "12"; set_hypr "rounding" "12"
       set_blur on; set_anim on;;
     "macOS-like")
-      falkon-themes apply "Catppuccin Frappe" >/dev/null
+      preset_theme "Catppuccin Frappe" "Catppuccin Mocha"
       set_hypr "gaps_in" "8"; set_hypr "gaps_out" "15"; set_hypr "rounding" "15"
       set_blur on; set_anim on; waybar_pos bottom;;
     "Omarchy-like")
-      falkon-themes apply "Tokyo Night" >/dev/null
+      preset_theme "Tokyo Night" "Falkon Midnight Pro"
       set_hypr "gaps_in" "5"; set_hypr "gaps_out" "10"; set_hypr "rounding" "10"
       set_blur on; set_anim on; waybar_pos top;;
     "Windows-like")
-      falkon-themes apply "Slate Gray" >/dev/null
+      preset_theme "Slate Gray" "Storm"
       set_hypr "gaps_in" "0"; set_hypr "gaps_out" "0"; set_hypr "rounding" "8"
       set_blur off; set_anim on; waybar_pos bottom;;
   esac
@@ -69,7 +75,7 @@ tui() {
   while true; do clear
     echo "=== Falkon Customizer ==="
     echo "Тема сейчас: $(falkon-themes current 2>/dev/null || echo ?) "
-    echo "1) Выбрать тему из 45"
+    echo "1) Выбрать тему из 25 (своё оформление)"
     echo "2) Случайная тема"
     echo "3) Пресеты: Минимализм/Киберпанк/macOS/Omarchy/Windows"
     echo "4) Blur вкл/выкл"
@@ -97,7 +103,7 @@ tui() {
 
 gui() {
   # Вкладка 1: темы списком с живым применением
-  THEME=$(theme_list | yad --list --title="Falkon Customizer - 45 тем" --text="Выбери тему (применится сразу):" --column="Тема (45 встроенных)" --width=400 --height=500 --search-column=1 --button="Случайная:3" --button="OK:0" --button="Пресеты:2" --button="Выход:1")
+  THEME=$(theme_list | yad --list --title="Falkon Customizer - 25 тем" --text="Выбери тему своего оформления (применится сразу):" --column="Тема (25 встроенных)" --width=400 --height=500 --search-column=1 --button="Случайная:3" --button="OK:0" --button="Пресеты:2" --button="Выход:1")
   ret=$?
   if [[ $ret -eq 3 ]]; then falkon-themes random; gui; return; fi
   if [[ $ret -eq 2 ]]; then

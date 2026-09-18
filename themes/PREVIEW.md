@@ -1,46 +1,31 @@
-# Falkon OS - 45 встроенных тем + предустановленный софт
+# Falkon OS - одна система, три оформления, 25+25 тем
 
-## Где лежит система?
-Всё в папке `falkon-os/` рядом с этим файлом:
 ```
 falkon-os/
-  profiles/desktop/  # KDE + ghostty + vscode + firefox + lutris + dolphin
-  profiles/tiling/   # Hyprland + ghostty + vscode + firefox + lutris + thunar
-  profiles/core/     # консоль
-  scripts/falkon-themes      # движок 45 тем
-  scripts/falkon-customizer  # ОЧЕНЬ КРУТАЯ кастомизация
-  airootfs/usr/share/falkon/themes/themes.conf  # база 45 тем
+  profiles/falkon/    # ЕДИНЫЙ профиль: один ISO на всех
+  scripts/falkon-look      # sudo falkon-look kde|hypr|cmd - смена лица системы
+  scripts/falkon-themes    # движок: 25 тем Классики + 25 тем Тайлинга
+  scripts/falkon-customizer
+  scripts/falkon-install-easy  # установщик: диск + оформление + язык
+  airootfs/usr/share/falkon/themes/kde.conf   # 25 тем Классики
+  airootfs/usr/share/falkon/themes/hypr.conf  # 25 тем Тайлинга
 ```
 
-## Предустановленный софт (Desktop + Tiling)
-- **Терминал:** ghostty (главный) + kitty + konsole/alacritty запасные
-- **Код:** vscode (`code`), neovim, kate
-- **Браузер:** firefox (+ru), thunderbird
-- **Гейминг:** lutris + mangohud + gamemode
-- **Файловый менеджер:** dolphin (Desktop) / thunar + yazi (Tiling)
-- **Связь:** discord, kdeconnect
-- **Медиа:** vlc/elisa/mpv, gimp/krita, libreoffice
-- **AI:** Claude Code (`claude`) + Codex (`codex`) — ставятся установщиком через npm
-- `falkon-themes apply "Dracula"` — меняет тему везде сразу
-
-## 45 тем (применяются одной командой везде: Hyprland+Ghostty+Kitty+Waybar+GTK)
-01 Falkon Swift (фирменная) | 02 Falkon Midnight Pro | 03 Dracula | 04 Nord | 05 Tokyo Night |
-06 Catppuccin Mocha | 07 Catppuccin Latte | 08 Macchiato | 09 Frappe | 10 Gruvbox Dark |
-11 Gruvbox Light | 12 Everforest Dark | 13 Everforest Light | 14 Rose Pine | 15 Rose Pine Moon |
-16 Kanagawa | 17 One Dark | 18 Monokai Pro | 19 Solarized Dark | 20 Solarized Light |
-21 Cyberpunk Neon | 22 Matrix | 23 Sunset Glow | 24 Ocean Deep | 25 Forest Mist |
-26 Lavender Dream | 27 Crimson Blood | 28 Arctic Ice | 29 Volcano | 30 Midnight City |
-31 Candy Pop | 32 Coffee Bean | 33 Mint Fresh | 34 Grape Soda | 35 Blood Moon |
-36 Sakura | 37 Slate Gray | 38 Emerald City | 39 Amethyst | 40 Inferno |
-41 Ghost White | 42 Storm | 43 Aurora | 44 Nebula | 45 Desert Sand
+## Оформления (переключение без переустановки)
+- **kde — Классика:** KDE Plasma, 25 тем (Falkon Swift, Dracula, Tokyo Night, ... Glacier, Neon Nights)
+- **hypr — Тайлинг:** Hyprland как Omarchy, 25 тем (Midnight Pro, Nord, Mocha, ... Obsidian, Paper)
+- **cmd — Консоль:** без графики, тем нет, ~300 МБ RAM
 
 ```bash
-falkon-themes list
-falkon-themes apply "Tokyo Night"
-falkon-themes random
-falkon-customizer   # GUI: темы + blur + gaps + rounding + waybar top/bottom + терминал + пресеты
+sudo falkon-look kde
+falkon-themes list              # 25 тем текущего оформления
+falkon-themes --hypr list       # заглянуть в чужой набор
+falkon-themes apply "Neon Nights"
+falkon-customizer               # пресеты сами берут тему под оформление
 ```
 
-## Пресеты кастомизации
-- Минимализм, Киберпанк, macOS-like, Omarchy-like, Windows-like
-- Ручное: gaps 0-40, rounding 0-25, blur on/off, анимации, waybar top/bottom, терминал ghostty/kitty/konsole, шрифты Inter/JetBrainsMono, иконки Papirus, курсор Adwaita
+## Софт: в ISO лёгкое, тяжёлое в 1 клик
+- **В ISO:** ghostty, kitty, vscode (`code`), firefox, lutris, mangohud, vlc, elisa, gimp,
+  mpv, imv, zathura, thunar, dolphin + Claude Code и Codex (через npm в установщике).
+- **В 1 клик (falkon-welcome):** «Офис» (libreoffice, thunderbird, krita),
+  «Связь и стримы» (discord, telegram, steam, obs). Причина: лимит файла релиза GitHub 2 ГБ.

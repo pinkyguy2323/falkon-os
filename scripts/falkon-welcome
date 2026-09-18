@@ -17,6 +17,8 @@ enable_chaotic() {
   sudo pacman -Sy
 }
 tweak_perf() { sudo falkon-tweaks; }
+install_office() { sudo pacman -S --needed --noconfirm libreoffice-fresh libreoffice-fresh-ru thunderbird krita; }
+install_fun() { sudo pacman -S --needed --noconfirm discord telegram-desktop steam obs-studio; }
 
 menu_tui() {
   while true; do
@@ -28,11 +30,14 @@ menu_tui() {
     echo "4) Включить Chaotic-AUR (бинарники)"
     echo "5) Установить Flatpak + Flathub"
     echo "6) Сменить оболочку на fish/zsh"
-    echo "7) Темы (45 встроенных)"
+    echo "7) Темы (25+25 под оформление)"
     echo "8) Кастомизация (blur/gaps/waybar/терминал)"
     echo "9) Обои (следующие/случайные)"
     echo "10) Язык (12 встроенных)"
     echo "11) Обновить систему (с GitHub)"
+    echo "12) Сменить оформление (KDE/Hypr/консоль)"
+    echo "13) Офис (libreoffice/thunderbird/krita)"
+    echo "14) Связь и стримы (discord/telegram/steam/obs)"
     echo "0) Выход"
     read -rp "> " c
     case "$c" in
@@ -47,6 +52,9 @@ menu_tui() {
       9) falkon-wallpaper next;;
       10) falkon-lang;;
       11) sudo falkon-update;;
+      12) falkon-look gui;;
+      13) install_office;;
+      14) install_fun;;
       0) exit 0;;
     esac
     read -rp "Готово. Enter..."
@@ -55,20 +63,24 @@ menu_tui() {
 
 menu_gui() {
   while true; do
-    CHOICE=$(yad --list --radiolist --width=600 --height=520 --title="Falkon OS Welcome" --text="Добро пожаловать в Falkon OS!\n45 тем + 12 языков + обои в 1 клик | Терминал: ghostty" \
+    CHOICE=$(yad --list --radiolist --width=600 --height=560 --title="Falkon OS Welcome" --text="Добро пожаловать в Falkon OS!\n25+25 тем + 12 языков + обои в 1 клик | Терминал: ghostty" \
       --column="Выбрать" --column="Действие" \
-      FALSE "Быстрые зеркала" FALSE "Авто-драйверы" FALSE "Производительность" FALSE "Chaotic-AUR" FALSE "Flatpak"       FALSE "Темы (45)" FALSE "Кастомизация" FALSE "Обои" FALSE "Язык (12)" FALSE "Обновить систему" FALSE "Выход" | cut -d'|' -f2)
+      FALSE "Быстрые зеркала" FALSE "Авто-драйверы" FALSE "Производительность" FALSE "Chaotic-AUR" FALSE "Flatpak" FALSE "Темы (25+25)" FALSE "Кастомизация" FALSE "Обои" FALSE "Язык (12)" FALSE "Обновить систему" FALSE "Оформление" FALSE "Офис" FALSE "Связь и стримы" FALSE "Выход" | cut -d'|' -f2)
     case "$CHOICE" in
       "Быстрые зеркала") xterm -e "sudo reflector --latest 20 --sort rate --save /etc/pacman.d/mirrorlist; sudo pacman -Sy; read -p Done" ;;
       "Авто-драйверы") xterm -e "sudo falkon-drivers; read -p Done" ;;
       "Производительность") xterm -e "sudo falkon-tweaks; read -p Done" ;;
       "Chaotic-AUR") xterm -e "bash -c '$(declare -f enable_chaotic); enable_chaotic'; read -p Done" ;;
       "Flatpak") xterm -e "sudo pacman -S --needed flatpak; read -p Done" ;;
-      "Темы (45)") falkon-themes list | yad --text-info --width=500 --height=400 --title="45 тем Falkon"; falkon-customizer ;;
+      "Темы (25+25)") falkon-customizer ;;
       "Кастомизация") falkon-customizer ;;
       "Обои") falkon-wallpaper gui ;;
       "Язык (12)") falkon-lang gui ;;
       "Обновить систему") xterm -e "sudo falkon-update; read -p Done" ;;
+      "Оформление") falkon-look gui ;;
+      "Офис") xterm -e "sudo pacman -S --needed libreoffice-fresh libreoffice-fresh-ru thunderbird krita; read -p Done" ;;
+      "Связь и стримы") xterm -e "sudo pacman -S --needed discord telegram-desktop steam obs-studio; read -p Done" ;;
+      "Связь и стримы") xterm -e "sudo pacman -S --needed discord telegram-desktop steam obs-studio; read -p Done" ;;
       *) exit 0 ;;
     esac
   done

@@ -3,16 +3,15 @@
 # Ручной запуск: вкладка Actions -> Build ISO -> Run workflow.
 name: Build ISO
 
+# Без этого GitHub режет создание Releases с 403 "Resource not accessible by integration"
+permissions:
+  contents: write
+  actions: write
+
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      flavor:
-        description: 'Редакция'
-        default: 'all'
-        type: choice
-        options: [all, desktop, tiling, core]
 
 jobs:
   build:
@@ -29,7 +28,7 @@ jobs:
       - name: Собрать ISO
         run: |
           chmod +x scripts/build-iso.sh scripts/falkon-*
-          ./scripts/build-iso.sh ${{ inputs.flavor || 'all' }}
+          ./scripts/build-iso.sh falkon
           ls -lh out/
 
       - name: Залить ISO как артефакт (14 дней)
@@ -46,9 +45,9 @@ jobs:
         with:
           files: out/*.iso
           body: |
-            ## Falkon OS ${{ github.ref_name }}
-            Arch-based, ghostty + vscode + firefox + claude-code + codex из коробки.
-            45 тем: `falkon-customizer`. 12 языков. Установка: `sudo falkon-install-easy`.
-            Проверка: `sha256sum *.iso`
+            ## Falkon OS ${{ github.ref_name }} - one system, three looks
+            Arch-based: KDE classic + Hyprland tiling + pure console (`sudo falkon-look kde|hypr|cmd`).
+            25+25 themes, 12 languages, ghostty + vscode + firefox + claude-code + codex.
+            Install: boot ISO -> "Install Falkon". Check: `sha256sum *.iso`
           draft: false
           prerelease: false
