@@ -47,6 +47,12 @@ avahi
 nss-mdns
 firewalld
 apparmor
+# --- Пины провайдеров: без них pacman спрашивает интерактивно и валит облачную сборку ---
+iptables
+pipewire-jack
+qt6-multimedia-ffmpeg
+tesseract-data-eng
+tesseract-data-rus
 reflector
 os-prober
 efibootmgr
@@ -61,12 +67,13 @@ squashfs-tools
 arch-install-scripts
 # falkon-* скрипты НЕ пакеты: их копирует scripts/build-iso.sh в /usr/bin
 # yay ставится после установки (AUR), calamares не используем (свой изи-установщик)
-# --- Виртуалки: чтобы Live ISO сразу работал в VirtualBox/VMware/QEMU/Hyper-V ---
-virtualbox-guest-utils
+# --- Виртуалки: releng уже везёт -nox/qemu/vmware, добавляем только недостающее ---
 open-vm-tools
 qemu-guest-agent
 spice-vdagent
 xf86-video-qxl
+# virtualbox-guest-utils НЕ добавляем: конфликтует с virtualbox-guest-utils-nox из releng.
+# Полную версию ставит falkon-drivers уже в установленной системе.
 # xf86-video-vmware удалён из реп Arch (драйвер теперь в ядре) + open-vm-tools хватает
 # --- 12 языков: шрифты чтобы всё рисовалось ---
 noto-fonts
@@ -81,8 +88,9 @@ hunspell-ru
 hunspell-en_us
 hunspell-de
 # hunspell-uk/es нет в репах, hunspell-fr требует интерактивного выбора - ставим через yay при желании
-# Ввод для китайского/японского:
-fcitx5-im
+# Ввод для китайского/японского (явный список: fcitx5-im это ГРУППА и вешает сборку вопросом):
+fcitx5
+fcitx5-configtool
 fcitx5-chinese-addons
 fcitx5-mozc
 fcitx5-gtk

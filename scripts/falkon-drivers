@@ -93,6 +93,13 @@ detect_printer() {
 install_pkgs() {
   # Чистим несуществующие (для AUR-пакетов)
   say "Установка: ${PKGS[*]}"
+  # Полная версия VBox-утилит конфликтует с -nox из Live ISO: меняем заранее
+  if printf '%s\n' "${PKGS[@]}" | grep -qx virtualbox-guest-utils; then
+    if pacman -Qq virtualbox-guest-utils-nox >/dev/null 2>&1; then
+      say "Меняю virtualbox-guest-utils-nox на полную версию..."
+      pacman -Rns --noconfirm virtualbox-guest-utils-nox || true
+    fi
+  fi
   # Сначала официальные репозитории
   if ! pacman -S --needed --noconfirm "${PKGS[@]}" 2>/tmp/falkon-drv-err.log; then
     say "Часть пакетов не в официальных репах, пробую по одному + AUR..."
