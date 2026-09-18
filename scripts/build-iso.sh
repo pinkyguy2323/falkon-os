@@ -58,11 +58,7 @@ prepare_profile() {
   done
   cp -a "$HERE/airootfs/usr/share/falkon/themes/." "$dst/airootfs/usr/share/falkon/themes/" 2>/dev/null || true
   cp -a "$HERE/airootfs/usr/share/falkon/lang.conf" "$dst/airootfs/usr/share/falkon/" 2>/dev/null || true
-  # Calamares для desktop/tiling
-  if [[ "$flavor" != "core" ]]; then
-    mkdir -p "$dst/airootfs/etc/calamares"
-    cp -a "$HERE/calamares/." "$dst/airootfs/etc/calamares/" 2>/dev/null || true
-  fi
+  # Ярлыки ставятся из airootfs/usr/share/applications (Установить Falkon, Welcome, Темы)
 
   # --- Права 0755 только для файлов, которые реально есть (mkarchiso строгий) ---
   {

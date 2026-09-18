@@ -4,8 +4,8 @@
 Всё в папке `falkon-os/` рядом с этим файлом:
 ```
 falkon-os/
-  profiles/desktop/  # KDE + ghostty + vscode + firefox + steam + dolphin
-  profiles/tiling/   # Hyprland + ghostty + vscode + firefox + steam + thunar
+  profiles/desktop/  # KDE + ghostty + vscode + firefox + lutris + dolphin
+  profiles/tiling/   # Hyprland + ghostty + vscode + firefox + lutris + thunar
   profiles/core/     # консоль
   scripts/falkon-themes      # движок 45 тем
   scripts/falkon-customizer  # ОЧЕНЬ КРУТАЯ кастомизация
@@ -16,10 +16,11 @@ falkon-os/
 - **Терминал:** ghostty (главный) + kitty + konsole/alacritty запасные
 - **Код:** vscode (`code`), neovim, kate
 - **Браузер:** firefox (+ru), thunderbird
-- **Гейминг:** steam + lutris + mangohud + gamemode
+- **Гейминг:** lutris + mangohud + gamemode
 - **Файловый менеджер:** dolphin (Desktop) / thunar + yazi (Tiling)
-- **Связь:** discord, telegram-desktop, kdeconnect
-- **Медиа:** vlc/elisa/mpv, obs-studio, gimp/krita, libreoffice
+- **Связь:** discord, kdeconnect
+- **Медиа:** vlc/elisa/mpv, gimp/krita, libreoffice
+- **AI:** Claude Code (`claude`) + Codex (`codex`) — ставятся установщиком через npm
 - `falkon-themes apply "Dracula"` — меняет тему везде сразу
 
 ## 45 тем (применяются одной командой везде: Hyprland+Ghostty+Kitty+Waybar+GTK)
@@ -42,4 +43,4 @@ falkon-customizer   # GUI: темы + blur + gaps + rounding + waybar top/bottom
 
 ## Пресеты кастомизации
 - Минимализм, Киберпанк, macOS-like, Omarchy-like, Windows-like
-- Ручное: gaps 0-40, rounding 0-25, blur on/off, анимации, waybar top/bottom, терминал ghostty/kitty/konsole, шрифты Inter/JetBrainsMono, иконки Papirus/Tela, курсор Bibata
+- Ручное: gaps 0-40, rounding 0-25, blur on/off, анимации, waybar top/bottom, терминал ghostty/kitty/konsole, шрифты Inter/JetBrainsMono, иконки Papirus, курсор Adwaita

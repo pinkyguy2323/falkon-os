@@ -19,7 +19,7 @@
 | **45 тем из коробки** | Одна команда — и тема меняется сразу везде: окна, терминал, панель, меню. `falkon-themes apply "Dracula"` или окно `falkon-customizer` с поиском |
 | **Обои в 1–2 клика** | `Super+W` — следующие обои, `Super+Shift+W` — выбор окном. Свои картинки просто кидай в `~/Pictures/Wallpapers` |
 | **12 языков** | Русский, украинский, английский, китайский, японский, испанский, французский, немецкий, португальский, арабский, хинди, турецкий. Переключение: `falkon-lang` |
-| **Софт уже стоит** | Терминал Ghostty, VS Code, Firefox, Steam + Lutris, файловый менеджер, Discord, Telegram, OBS, GIMP, LibreOffice |
+| **Софт уже стоит** | Терминал Ghostty, VS Code, Firefox, Lutris, файловый менеджер, Discord, GIMP, LibreOffice + AI-ассистенты Claude Code и Codex |
 | **Лёгкая и быстрая** | Ядро `linux-zen`, сжатие памяти zram, быстрые зеркала. Core-редакция ест ~300 МБ оперативки — летает даже на 2 ГБ |
 | **Честный Arch** | Никаких левых репозиториев по умолчанию. Весь Arch Wiki, AUR и `yay` работают 1:1 |
 
@@ -137,7 +137,7 @@ profiles/desktop|tiling|core/  # метаданные + списки пакет�
 profiles/base-packages.txt     # общее для всех
 scripts/falkon-*               # драйверы, твики, темы, обои, языки, установщики
 airootfs/                      # оверлей live-системы (конфиг Hyprland, 45 тем, языки)
-calamares/                     # графический установщик
+scripts/falkon-install-easy   # изи-установщик (GUI + TUI, выбор диска, детект Windows)
 .github/workflows/             # автобилд ISO в облаке
 ```
 

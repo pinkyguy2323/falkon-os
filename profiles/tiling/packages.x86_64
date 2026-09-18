@@ -17,12 +17,10 @@ alacritty
 firefox
 firefox-i18n-ru
 code
-steam
 lutris
 mangohud
 gamemode
 discord
-telegram-desktop
 thunar
 thunar-volman
 thunar-archive-plugin
@@ -32,7 +30,6 @@ mpv
 imv
 zathura
 zathura-pdf-mupdf
-obs-studio
 gimp
 pavucontrol
 helvum
@@ -75,14 +72,12 @@ qt6ct
 kvantum
 kvantum-qt5
 papirus-icon-theme
-tela-icon-theme
-bibata-cursor-theme
+# tela-icon-theme и bibata-cursor-theme только в AUR - ставятся через yay при желании
 ttf-jetbrains-mono-nerd
 ttf-fira-code
 noto-fonts
 noto-fonts-emoji
 otf-font-awesome
-calamares
 yad
 fastfetch
 mesa

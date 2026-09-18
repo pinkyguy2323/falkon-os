@@ -83,7 +83,7 @@ do_install() { # $1=disk $2=user $3=pass $4=host $5=edition $6=lang
   mkdir -p /mnt/boot; mount "$EFI" /mnt/boot || { err "mount EFI fail"; exit 1; }
 
   say "[2/7] База (pacstrap)..."
-  pacstrap -K /mnt base linux-zen linux-firmware amd-ucode intel-ucode networkmanager sudo neovim git reflector zram-generator grub efibootmgr os-prober || { err "pacstrap fail, проверь интернет"; exit 1; }
+  pacstrap -K /mnt base base-devel linux-zen linux-firmware amd-ucode intel-ucode networkmanager sudo neovim git reflector zram-generator grub efibootmgr os-prober || { err "pacstrap fail, проверь интернет"; exit 1; }
   genfstab -U /mnt >> /mnt/etc/fstab
 
   say "[3/7] Язык/пользователь/загрузка..."
@@ -139,18 +139,33 @@ EOF2
   arch-chroot /mnt falkon-drivers --auto || true
   arch-chroot /mnt falkon-tweaks || true
 
-  say "[6/7] Редакция $ED + софт (ghostty/vscode/firefox/steam)..."
+  say "[6/8] Редакция $ED + софт (ghostty/vscode/firefox)..."
   if [[ "$ED" == "desktop" ]]; then
-    arch-chroot /mnt pacman -S --needed --noconfirm plasma-desktop sddm dolphin konsole ghostty firefox code steam || true
+    arch-chroot /mnt pacman -S --needed --noconfirm plasma-desktop sddm dolphin konsole ghostty firefox code nodejs npm || true
     arch-chroot /mnt systemctl enable sddm || true
   elif [[ "$ED" == "tiling" ]]; then
-    arch-chroot /mnt pacman -S --needed --noconfirm hyprland kitty ghostty waybar wofi thunar firefox code steam sddm || true
+    arch-chroot /mnt pacman -S --needed --noconfirm hyprland kitty ghostty waybar wofi thunar firefox code nodejs npm sddm || true
     arch-chroot /mnt systemctl enable sddm || true
   else
+    arch-chroot /mnt pacman -S --needed --noconfirm nodejs npm || true
     say "Core: без GUI (<400МБ RAM). Доставить позже: sudo pacman -S plasma-desktop"
   fi
 
-  say "[7/7] Финал..."
+  say "[7/8] yay (AUR) + AI-ассистенты (Claude Code, Codex)..."
+  arch-chroot /mnt /bin/bash <<EOF3 || true
+set -e
+echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-falkon-tmp
+cd /tmp
+rm -rf yay-bin
+sudo -u "$USER" git clone --depth=1 https://aur.archlinux.org/yay-bin.git
+cd yay-bin
+sudo -u "$USER" makepkg -si --noconfirm
+rm -f /etc/sudoers.d/99-falkon-tmp
+npm i -g @anthropic-ai/claude-code @openai/codex
+echo "AI: claude + codex установлены (запуск: claude / codex)"
+EOF3
+
+  say "[8/8] Финал..."
   umount -R /mnt
   say "ГОТОВО. Вытащи флешку и перезагрузись. Логин: $USER. Лог: $LOG"
 }

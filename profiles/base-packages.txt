@@ -29,7 +29,6 @@ man-db
 man-pages
 texinfo
 zram-generator
-fstrim
 smartmontools
 usbutils
 pciutils
@@ -58,25 +57,17 @@ ntfs-3g
 exfatprogs
 btrfs-progs
 xfsprogs
-calamares
 squashfs-tools
 arch-install-scripts
-yay-bin
-falkon-drivers
-falkon-tweaks
-falkon-welcome
-falkon-themes
-falkon-customizer
-falkon-wallpaper
-falkon-lang
-falkon-install-easy
+# falkon-* скрипты НЕ пакеты: их копирует scripts/build-iso.sh в /usr/bin
+# yay ставится после установки (AUR), calamares не используем (свой изи-установщик)
 # --- Виртуалки: чтобы Live ISO сразу работал в VirtualBox/VMware/QEMU/Hyper-V ---
 virtualbox-guest-utils
 open-vm-tools
 qemu-guest-agent
 spice-vdagent
 xf86-video-qxl
-xf86-video-vmware
+# xf86-video-vmware удалён из реп Arch (драйвер теперь в ядре) + open-vm-tools хватает
 # --- 12 языков: шрифты чтобы всё рисовалось ---
 noto-fonts
 noto-fonts-cjk
@@ -87,11 +78,9 @@ ttf-liberation
 ttf-opensans
 hunspell
 hunspell-ru
-hunspell-uk
 hunspell-en_us
 hunspell-de
-hunspell-fr
-hunspell-es
+# hunspell-uk/es нет в репах, hunspell-fr требует интерактивного выбора - ставим через yay при желании
 # Ввод для китайского/японского:
 fcitx5-im
 fcitx5-chinese-addons
@@ -103,3 +92,6 @@ hyprpaper
 feh
 imagemagick
 yad
+# --- AI-ассистенты ставятся через npm после установки (claude-code, codex) ---
+nodejs
+npm

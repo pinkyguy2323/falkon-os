@@ -97,7 +97,7 @@ EOF
 gtk-theme-name=$gtk
 gtk-icon-theme-name=$icons
 gtk-font-name=Inter 10
-gtk-cursor-theme-name=Bibata-Modern-Classic
+gtk-cursor-theme-name=Adwaita
 EOF
   mkdir -p ~/.config/gtk-4.0
   cp ~/.config/gtk-3.0/settings.ini ~/.config/gtk-4.0/settings.ini

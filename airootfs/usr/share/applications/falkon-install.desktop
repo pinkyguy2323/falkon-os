@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install Falkon OS
+Name[ru]=Установить Falkon
+Comment=Easy installer: pick a disk, wipe if needed, done
+Comment[ru]=Простая установка: выбери диск и всё
+Exec=sh -c 'sudo falkon-install-easy'
+Terminal=true
+Icon=system-software-install
+Categories=System;

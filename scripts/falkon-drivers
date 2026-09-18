@@ -21,7 +21,7 @@ detect_virt() {
     say "Виртуалка: $VIRT"
     case "$VIRT" in
       *oracle*) PKGS+=(virtualbox-guest-utils);;
-      *vmware*) PKGS+=(open-vm-tools xf86-video-vmware xf86-input-vmmouse);;
+      *vmware*) PKGS+=(open-vm-tools);;
       *qemu*|*kvm*) PKGS+=(qemu-guest-agent spice-vdagent xf86-video-qxl);;
       *microsoft*) PKGS+=(hyperv);;
     esac
@@ -44,7 +44,7 @@ detect_gpu() {
   fi
   if echo "$PCI" | grep -qi -E 'amd|ati|radeon'; then
     say "Найдена AMD"
-    PKGS+=(xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon libva-mesa-driver mesa-vdpau rocm-opencl-runtime)
+    PKGS+=(xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon libva-mesa-driver rocm-opencl-runtime)
   fi
   if echo "$PCI" | grep -qi -E 'intel.*(hd|uhd|iris|graphics)|intel corporation.*graphics'; then
     say "Найдена Intel"
@@ -52,7 +52,7 @@ detect_gpu() {
   fi
   if echo "$PCI" | grep -qi -E 'virtio|qxl|vmware|virtualbox'; then
     say "Виртуальное видео"
-    PKGS+=(xf86-video-qxl xf86-video-vmware virtualbox-guest-utils)
+    PKGS+=(xf86-video-qxl virtualbox-guest-utils)
   fi
 }
 

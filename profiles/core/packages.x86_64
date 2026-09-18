@@ -53,5 +53,4 @@ openssh
 firewalld
 python
 python-pip
-yay-bin
-falkon-drivers
+# yay и falkon-* ставятся после установки скриптами, не pacman

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Falkon Welcome
+Name[ru]=Falkon Welcome
+Comment=Mirrors, drivers, themes, flatpak in one window
+Comment[ru]=Зеркала, драйверы, темы и Flatpak в одном окне
+Exec=falkon-welcome
+Terminal=false
+Icon=preferences-system
+Categories=Settings;System;

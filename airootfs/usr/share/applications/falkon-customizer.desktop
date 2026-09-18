@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Falkon Themes
+Name[ru]=Темы Falkon
+Comment=45 themes, blur, gaps, presets
+Comment[ru]=45 тем, блюр, зазоры, пресеты
+Exec=falkon-customizer
+Terminal=false
+Icon=preferences-desktop-theme
+Categories=Settings;DesktopSettings;

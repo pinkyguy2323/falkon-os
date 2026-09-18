@@ -17,15 +17,12 @@ okular
 firefox
 firefox-i18n-ru
 code
-steam
 lutris
 mangohud
 gamemode
 discord
-telegram-desktop
 vlc
 elisa
-obs-studio
 gimp
 krita
 libreoffice-fresh
@@ -45,8 +42,7 @@ qt6ct
 nwg-look
 lxappearance
 papirus-icon-theme
-tela-icon-theme
-bibata-cursor-theme
+# tela-icon-theme и bibata-cursor-theme только в AUR - ставятся через yay при желании
 breeze-gtk
 ttf-jetbrains-mono-nerd
 noto-fonts
@@ -54,8 +50,7 @@ noto-fonts-emoji
 noto-fonts-cjk
 inter-font
 ttf-fira-code
-# --- Графический установщик и центры Falkon ---
-calamares
+# --- Центры Falkon (ставятся скриптом сборки, не pacman) ---
 yad
 zenity
 fastfetch
@@ -63,7 +58,7 @@ fastfetch
 mesa
 vulkan-icd-loader
 libva-mesa-driver
-mesa-vdpau
+# mesa-vdpau удалён из реп Arch (вошёл в состав mesa)
 xf86-video-amdgpu
 xf86-video-ati
 xf86-video-intel

@@ -47,7 +47,7 @@ jobs:
           files: out/*.iso
           body: |
             ## Falkon OS ${{ github.ref_name }}
-            Arch-based, ghostty + vscode + firefox + steam из коробки.
+            Arch-based, ghostty + vscode + firefox + claude-code + codex из коробки.
             45 тем: `falkon-customizer`. 12 языков. Установка: `sudo falkon-install-easy`.
             Проверка: `sha256sum *.iso`
           draft: false
