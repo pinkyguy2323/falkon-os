@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# falkon-themes - движок 45 тем Falkon OS
+# Применение одной командой ко всему: Hyprland + Kitty + Ghostty + Waybar + Wofi + GTK + Kvantum + Starship
+# Использование:
+#   falkon-themes list              # список 45 тем
+#   falkon-themes apply "Dracula"   # применить
+#   falkon-themes random            # случайная
+#   falkon-themes current           # текущая
+set -euo pipefail
+DB="/usr/share/falkon/themes/themes.conf"
+[[ -f ./airootfs/usr/share/falkon/themes/themes.conf ]] && DB="./airootfs/usr/share/falkon/themes/themes.conf"
+[[ -f "$HOME/../usr/share/falkon/themes/themes.conf" ]] && DB="$HOME/../usr/share/falkon/themes/themes.conf"
+# fallback: ищем рядом со скриптом
+for p in "/usr/share/falkon/themes/themes.conf" "$(dirname "$0")/../airootfs/usr/share/falkon/themes/themes.conf" "$(dirname "$0")/../usr/share/falkon/themes/themes.conf"; do [[ -f "$p" ]] && DB="$p"; done
+# если запускаем из репо:
+REPO_DB="$(cd "$(dirname "$0")/.." && pwd)/airootfs/usr/share/falkon/themes/themes.conf"
+[[ -f "$REPO_DB" ]] && DB="$REPO_DB"
+
+list() { awk -F'|' '{printf "%-22s  #%s #%s #%s\n", $2, $3, $5, $6}' "$DB"; }
+current() { cat ~/.config/falkon/current-theme 2>/dev/null || echo "Falkon Swift"; }
+
+get() { # $1=name -> bg fg accent accent2 mode
+  grep -F "|$1|" "$DB" | head -1 || grep -Fi "$1" "$DB" | head -1
+}
+
+apply() {
+  local name="$1"
+  local line; line=$(get "$name")
+  [[ -z "$line" ]] && { echo "Тема не найдена: $name"; echo "Доступно:"; list; exit 1; }
+  IFS='|' read -r _id tname bg fg accent accent2 mode gtk icons <<< "$line"
+  echo "[Falkon] Применяю тему: $tname (#$bg #$accent #$accent2 $mode)"
+  mkdir -p ~/.config/falkon ~/.config/hypr ~/.config/kitty ~/.config/ghostty ~/.config/waybar ~/.config/wofi ~/.config/gtk-3.0 ~/.config/gtk-4.0 ~/.config/Kvantum
+
+  echo "$tname" > ~/.config/falkon/current-theme
+  printf '%s\n%s\n%s\n%s\n%s\n' "$bg" "$fg" "$accent" "$accent2" "$mode" > ~/.config/falkon/current-colors
+
+  # --- Hyprland: active border = accent ---
+  if [[ -f ~/.config/hypr/hyprland.conf ]]; then
+    # обновляем только col.active_border, остальное не трогаем
+    if grep -q "col.active_border" ~/.config/hypr/hyprland.conf; then
+      sed -i "s/col.active_border.*/col.active_border = rgba(${accent}ee) rgba(${accent2}ee) 45deg/" ~/.config/hypr/hyprland.conf
+    fi
+  fi
+  # отдельный файл темы для hypr (include)
+  cat > ~/.config/hypr/falkon-theme.conf <<EOF
+# Falkon theme: $tname (авто)
+general { col.active_border = rgba(${accent}ee) rgba(${accent2}ee) 45deg
+  col.inactive_border = rgba(${bg}aa) }
+decoration { col.shadow = rgba(${bg}ee) }
+EOF
+
+  # --- Kitty ---
+  cat > ~/.config/kitty/falkon-theme.conf <<EOF
+# $tname
+background #$bg
+foreground #$fg
+color1 #$accent
+color2 #$accent2
+color3 #$accent
+color4 #$accent2
+EOF
+  grep -q "falkon-theme" ~/.config/kitty/kitty.conf 2>/dev/null || echo "include falkon-theme.conf" >> ~/.config/kitty/kitty.conf 2>/dev/null || true
+
+  # --- Ghostty (главный терминал Falkon) ---
+  cat > ~/.config/ghostty/config <<EOF
+# Falkon OS Ghostty - тема $tname
+background = $bg
+foreground = $fg
+selection-background = $accent
+selection-foreground = $bg
+font-family = JetBrainsMono Nerd Font
+font-size = 12
+background-opacity = 0.95
+window-decoration = false
+cursor-style = block
+EOF
+
+  # --- Waybar ---
+  cat > ~/.config/waybar/falkon-colors.css <<EOF
+/* Falkon $tname */
+@define-color bg #$bg;
+@define-color fg #$fg;
+@define-color accent #$accent;
+@define-color accent2 #$accent2;
+EOF
+
+  # --- Wofi ---
+  cat > ~/.config/wofi/colors.css <<EOF
+@define-color bg #$bg;
+@define-color fg #$fg;
+@define-color accent #$accent;
+EOF
+
+  # --- GTK3/4 ---
+  cat > ~/.config/gtk-3.0/settings.ini <<EOF
+[Settings]
+gtk-theme-name=$gtk
+gtk-icon-theme-name=$icons
+gtk-font-name=Inter 10
+gtk-cursor-theme-name=Bibata-Modern-Classic
+EOF
+  mkdir -p ~/.config/gtk-4.0
+  cp ~/.config/gtk-3.0/settings.ini ~/.config/gtk-4.0/settings.ini
+  # Kvantum
+  echo "$gtk" > ~/.config/Kvantum/Current 2>/dev/null || true
+
+  # --- Starship: акцент ---
+  mkdir -p ~/.config
+  if [[ -f ~/.config/starship.toml ]]; then
+    sed -i "s/#.*falkon-accent.*/success_symbol = \"[➜](bold #$accent)\" # falkon-accent/" ~/.config/starship.toml || true
+  fi
+
+  # --- SDDM / Plasma (только Desktop): сохраняем выбор для следующего логина ---
+  echo "$tname" | tee ~/.config/falkon/last-theme >/dev/null
+
+  # Перезапуск UI
+  pkill -SIGUSR2 waybar 2>/dev/null || true
+  hyprctl reload 2>/dev/null || true
+  echo "[OK] Тема $tname применена везде: Hyprland+Ghostty+Kitty+Waybar+GTK"
+}
+
+case "${1:-list}" in
+  list) list;;
+  current) current;;
+  random) apply "$(shuf -n1 "$DB" | cut -d'|' -f2)";;
+  apply) apply "${2:-Falkon Swift}";;
+  *) echo "falkon-themes list|apply \"Имя\"|random|current"; exit 1;;
+esac

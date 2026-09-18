@@ -1,0 +1,54 @@
+# Falkon OS - автобилд ISO в облаке (тебе не нужен Linux!)
+# Как работает: запушил тег v1.0 -> GitHub сам собрал ISO -> положил в Releases.
+# Ручной запуск: вкладка Actions -> Build ISO -> Run workflow.
+name: Build ISO
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Редакция'
+        default: 'all'
+        type: choice
+        options: [all, desktop, tiling, core]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Поставить зависимости
+        run: pacman -Sy --noconfirm archiso git reflector rsync squashfs-tools dosfstools
+
+      - name: Собрать ISO
+        run: |
+          chmod +x scripts/build-iso.sh scripts/falkon-*
+          ./scripts/build-iso.sh ${{ inputs.flavor || 'all' }}
+          ls -lh out/
+
+      - name: Залить ISO как артефакт (14 дней)
+        uses: actions/upload-artifact@v4
+        with:
+          name: falkon-iso
+          path: out/*.iso
+          retention-days: 14
+
+      # Только для тегов v* - создать Release с ISO (чтобы люди качали без git)
+      - name: Release с ISO
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.iso
+          body: |
+            ## Falkon OS ${{ github.ref_name }}
+            Arch-based, ghostty + vscode + firefox + steam из коробки.
+            45 тем: `falkon-customizer`. 12 языков. Установка: `sudo falkon-install-easy`.
+            Проверка: `sha256sum *.iso`
+          draft: false
+          prerelease: false

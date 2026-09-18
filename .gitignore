@@ -1,0 +1,26 @@
+# Falkon OS - не тащим мусор в репозиторий
+# ISO и рабочие каталоги сборки (они весят гигабайты!)
+out/
+work/
+/tmp/falkon-build-*/
+*.iso
+*.img
+*.qcow2
+*.vdi
+*.vmdk
+
+# Кэши Arch
+*.pkg.tar.zst
+*.log
+
+# Системное
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Локальные переопределения (у каждого свои)
+*.local
+.env

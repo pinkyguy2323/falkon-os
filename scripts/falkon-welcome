@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# falkon-welcome - центр кастомизации и удобства
+# GUI если есть (yad/zenity), иначе TUI (dialog/bash)
+# Позволяет: обновить зеркала, поставить драйверы, выбрать ядро, тему, Chaotic-AUR, Flatpak
+set -euo pipefail
+
+has_gui() { [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v yad >/dev/null; }
+
+update_mirrors() { sudo reflector --latest 20 --sort rate --save /etc/pacman.d/mirrorlist; sudo pacman -Sy; }
+install_drivers() { sudo falkon-drivers; }
+install_flatpak() { sudo pacman -S --needed --noconfirm flatpak; flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo; }
+enable_chaotic() {
+  sudo pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
+  sudo pacman-key --lsign-key 3056513887B78AEB
+  sudo pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
+  grep -q chaotic-aur /etc/pacman.conf || printf '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n' | sudo tee -a /etc/pacman.conf
+  sudo pacman -Sy
+}
+tweak_perf() { sudo falkon-tweaks; }
+
+menu_tui() {
+  while true; do
+    clear
+    echo "=== Falkon OS Welcome ==="
+    echo "1) Обновить зеркала (быстрый pacman)"
+    echo "2) Установить драйверы (авто)"
+    echo "3) Твики производительности"
+    echo "4) Включить Chaotic-AUR (бинарники)"
+    echo "5) Установить Flatpak + Flathub"
+    echo "6) Сменить оболочку на fish/zsh"
+    echo "7) Темы (45 встроенных)"
+    echo "8) Кастомизация (blur/gaps/waybar/терминал)"
+    echo "9) Обои (следующие/случайные)"
+    echo "10) Язык (12 встроенных)"
+    echo "0) Выход"
+    read -rp "> " c
+    case "$c" in
+      1) update_mirrors;;
+      2) install_drivers;;
+      3) tweak_perf;;
+      4) enable_chaotic;;
+      5) install_flatpak;;
+      6) chsh -s /usr/bin/fish || chsh -s /usr/bin/zsh;;
+      7) falkon-themes list | less; read -rp "Имя темы: " t; falkon-themes apply "$t";;
+      8) falkon-customizer;;
+      9) falkon-wallpaper next;;
+      10) falkon-lang;;
+      0) exit 0;;
+    esac
+    read -rp "Готово. Enter..."
+  done
+}
+
+menu_gui() {
+  while true; do
+    CHOICE=$(yad --list --radiolist --width=600 --height=520 --title="Falkon OS Welcome" --text="Добро пожаловать в Falkon OS!\n45 тем + 12 языков + обои в 1 клик | Терминал: ghostty" \
+      --column="Выбрать" --column="Действие" \
+      FALSE "Быстрые зеркала" FALSE "Авто-драйверы" FALSE "Производительность" FALSE "Chaotic-AUR" FALSE "Flatpak" FALSE "Темы (45)" FALSE "Кастомизация" FALSE "Обои" FALSE "Язык (12)" FALSE "Выход" | cut -d'|' -f2)
+    case "$CHOICE" in
+      "Быстрые зеркала") xterm -e "sudo reflector --latest 20 --sort rate --save /etc/pacman.d/mirrorlist; sudo pacman -Sy; read -p Done" ;;
+      "Авто-драйверы") xterm -e "sudo falkon-drivers; read -p Done" ;;
+      "Производительность") xterm -e "sudo falkon-tweaks; read -p Done" ;;
+      "Chaotic-AUR") xterm -e "bash -c '$(declare -f enable_chaotic); enable_chaotic'; read -p Done" ;;
+      "Flatpak") xterm -e "sudo pacman -S --needed flatpak; read -p Done" ;;
+      "Темы (45)") falkon-themes list | yad --text-info --width=500 --height=400 --title="45 тем Falkon"; falkon-customizer ;;
+      "Кастомизация") falkon-customizer ;;
+      "Обои") falkon-wallpaper gui ;;
+      "Язык (12)") falkon-lang gui ;;
+      *) exit 0 ;;
+    esac
+  done
+}
+
+if has_gui; then menu_gui; else menu_tui; fi

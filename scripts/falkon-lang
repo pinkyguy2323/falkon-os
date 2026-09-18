@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# falkon-lang - 12 встроенных языков, переключение в 1 клик
+#   falkon-lang list | set ru | gui
+# Языки: Русский, Українська, English, 中文简体, 日本語, Español, Français, Deutsch, Português, العربية, हिन्दी, Türkçe
+set -euo pipefail
+
+# код|Название|locale|раскладка
+LANGS="ru|Русский|ru_RU.UTF-8|us,ru
+uk|Українська|uk_UA.UTF-8|us,ua
+en|English|en_US.UTF-8|us
+zh|中文简体|zh_CN.UTF-8|us
+ja|日本語|ja_JP.UTF-8|us,jp
+es|Español|es_ES.UTF-8|us,es
+fr|Français|fr_FR.UTF-8|us,fr
+de|Deutsch|de_DE.UTF-8|us,de
+pt|Português|pt_BR.UTF-8|us,br
+ar|العربية|ar_SA.UTF-8|us,ara
+hi|हिन्दी|hi_IN.UTF-8|us,in
+tr|Türkçe|tr_TR.UTF-8|us,tr"
+
+list() { echo "$LANGS" | awk -F'|' '{print $1" - "$2" ("$3")"}'; }
+
+set_lang() { # $1=код
+  line=$(echo "$LANGS" | grep "^$1|") || { echo "Нет языка: $1"; list; exit 1; }
+  IFS='|' read -r code name locale kblay <<< "$line"
+  echo "[Falkon] Язык: $name ($locale)"
+  # 1. locale.gen - раскомментировать нужное (без багов: не трогаем остальное)
+  sudo sed -i "s/^#\($locale\)/\1/" /etc/locale.gen
+  sudo locale-gen
+  echo "LANG=$locale" | sudo tee /etc/locale.conf
+  # 2. Клавиатура Hyprland (Alt+Shift переключает, первым всегда us чтобы не потеряться)
+  if [[ -f ~/.config/hypr/hyprland.conf ]]; then
+    sed -i "s/kb_layout.*/kb_layout = $kblay/" ~/.config/hypr/hyprland.conf
+    hyprctl reload 2>/dev/null || true
+  fi
+  # 3. Консоль
+  echo "KEYMAP=us" | sudo tee /etc/vconsole.conf >/dev/null
+  # 4. Firefox/Plasma подхватят при следующем логине
+  mkdir -p ~/.config/falkon; echo "$code" > ~/.config/falkon/lang
+  echo "[OK] $name применён. Перелогинься для 100% эффекта."
+}
+
+gui() {
+  sel=$(echo "$LANGS" | awk -F'|' '{print $1"|"$2"|"$3}' | yad --list --title="Falkon Язык / Language" --text="Выбери язык / Choose language (12 встроенных):" --column="Код" --column="Язык" --column="Locale" --width=450 --height=420 --search-column=2)
+  [[ -z "$sel" ]] && exit 0
+  code=$(echo "$sel" | cut -d'|' -f1)
+  xterm -e "sudo falkon-lang set $code; read -p 'Готово. Enter...'" 2>/dev/null || { set_lang "$code"; read -rp "Enter..."; }
+}
+
+case "${1:-gui}" in
+  list) list;;
+  set) set_lang "${2:?код: ru uk en zh ja es fr de pt ar hi tr}";;
+  gui|"") if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then gui; else list; read -rp "Код: " c; set_lang "$c"; fi;;
+esac

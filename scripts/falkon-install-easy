@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# falkon-install-easy - ИЗИ-установщик Falkon OS (без багов)
+#   1. Показывает диски человеческим языком (размер/модель, а не только /dev/sda)
+#   2. Детектит Windows/другую ОС через os-prober + метки разделов
+#   3. Если ОС найдена -> спрашивает "Очистить диск полностью?" -> после очистки сразу ставит
+#   4. Защиты от дурака: нельзя поставить на флешку с Live, нельзя на пустое, двойное подтверждение wipe
+set -euo pipefail
+LOG=/tmp/falkon-install.log
+exec > >(tee -a "$LOG") 2>&1
+
+say() { echo -e "\e[1;34m[Falkon]\e[0m $*"; }
+err() { echo -e "\e[1;31m[ОШИБКА]\e[0m $*"; }
+need_root() { [[ $EUID -eq 0 ]] || { err "Запусти через sudo"; exit 1; }; }
+
+# Нельзя ставить на носитель, с которого загрузились
+live_device() {
+  findmnt -n -o SOURCE /run/archiso/bootmnt 2>/dev/null || findmnt -n -o SOURCE / 2>/dev/null || echo ""
+}
+
+list_disks() { # вывод: /dev/sda|500G|Samsung_SSD|описание
+  lsblk -d -n -o NAME,SIZE,MODEL,TRAN -e7,11 | while read -r name size model tran; do
+    echo "/dev/$name|$size|${model:-диск}|$tran"
+  done
+}
+
+detect_os_on() { # $1=/dev/sda -> "Windows 11 (/dev/sda1)" или ""
+  local disk="$1" out=""
+  # os-prober (лучший детект Windows/Linux)
+  if command -v os-prober >/dev/null; then
+    out=$(os-prober 2>/dev/null | grep "^$disk" || true)
+    [[ -n "$out" ]] && { echo "$out" | tr '\n' '; '; return; }
+  fi
+  # fallback: ищем NTFS с Windows + ext4/btrfs с Linux
+  for part in $(lsblk -n -o PATH "$disk" 2>/dev/null | tail -n +2); do
+    fst=$(lsblk -n -o FSTYPE "$part" 2>/dev/null || true)
+    lbl=$(lsblk -n -o LABEL "$part" 2>/dev/null || true)
+    [[ "$fst" == "ntfs" ]] && out+="Windows? ($part $lbl); "
+    [[ "$fst" =~ ext4|btrfs|xfs ]] && out+="Linux? ($part $lbl); "
+    [[ "$lbl" =~ -i EFI|boot ]] && true
+  done
+  echo "$out"
+}
+
+confirm_gui() { # $1=text -> 0=yes
+  if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    yad --question --title="Falkon Установка" --text="$1" --width=500; return $?
+  else
+    echo "$1"; read -rp "[y/N] " a; [[ "$a" =~ ^[YyДд] ]]; return $?
+  fi
+}
+
+pick_disk_gui() {
+  local live; live=$(live_device)
+  local rows=""; while IFS= read -r l; do
+    dev=$(echo "$l" | cut -d'|' -f1)
+    [[ "$live" == "$dev"* ]] && continue  # прячем live-флешку
+    found=$(detect_os_on "$dev")
+    [[ -z "$found" ]] && found="пустой / данные"
+    rows+="$l|$found"$'\n'
+  done < <(list_disks)
+  [[ -z "$rows" ]] && { err "Диски не найдены"; exit 1; }
+  if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    echo "$rows" | yad --list --title="Куда ставить Falkon OS?" --text="Выбери диск (флешка с Live скрыта):" --column="Диск" --column="Размер" --column="Модель" --column="Тип" --column="Что сейчас на диске" --width=750 --height=350 --separator="" | cut -d'|' -f1
+  else
+    echo "$rows" | tr '|' ' ' | nl
+    read -rp "Номер диска: " n
+    echo "$rows" | sed -n "${n}p" | cut -d'|' -f1
+  fi
+}
+
+do_install() { # $1=disk $2=user $3=pass $4=host $5=edition $6=lang
+  local DISK="$1" USER="$2" PASS="$3" HOST="$4" ED="$5" LANGCODE="$6"
+  say "Ставлю на $DISK (редакция $ED, язык $LANGCODE)..."
+  # Имена разделов (nvme/mmcblk -> p1)
+  if [[ "$DISK" =~ nvme|mmcblk ]]; then EFI="${DISK}p1"; ROOT="${DISK}p2"; else EFI="${DISK}1"; ROOT="${DISK}2"; fi
+
+  say "[1/7] Очистка таблицы + разметка (EFI 1G + Btrfs корень)..."
+  wipefs -a "$DISK"
+  parted -s "$DISK" mklabel gpt mkpart ESP fat32 1MiB 1025MiB set 1 esp on mkpart primary btrfs 1025MiB 100% || { err "Разметка не удалась"; exit 1; }
+  partprobe "$DISK"; sleep 2
+  mkfs.fat -F32 "$EFI" || { err "mkfs.fat fail"; exit 1; }
+  mkfs.btrfs -f "$ROOT" || { err "mkfs.btrfs fail"; exit 1; }
+  mount "$ROOT" /mnt || { err "mount fail"; exit 1; }
+  mkdir -p /mnt/boot; mount "$EFI" /mnt/boot || { err "mount EFI fail"; exit 1; }
+
+  say "[2/7] База (pacstrap)..."
+  pacstrap -K /mnt base linux-zen linux-firmware amd-ucode intel-ucode networkmanager sudo neovim git reflector zram-generator grub efibootmgr os-prober || { err "pacstrap fail, проверь интернет"; exit 1; }
+  genfstab -U /mnt >> /mnt/etc/fstab
+
+  say "[3/7] Язык/пользователь/загрузка..."
+  arch-chroot /mnt /bin/bash <<EOF
+set -e
+ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+hwclock --systohc
+echo "ru_RU.UTF-8 UTF-8" >> /etc/locale.gen
+echo "uk_UA.UTF-8 UTF-8" >> /etc/locale.gen
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen
+echo "fr_FR.UTF-8 UTF-8" >> /etc/locale.gen
+echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
+echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen
+echo "ja_JP.UTF-8 UTF-8" >> /etc/locale.gen
+echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen
+echo "ar_SA.UTF-8 UTF-8" >> /etc/locale.gen
+echo "hi_IN.UTF-8 UTF-8" >> /etc/locale.gen
+echo "tr_TR.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+echo "LANG=$LANGCODE" > /etc/locale.conf
+echo "$HOST" > /etc/hostname
+useradd -m -G wheel,video,audio,storage "$USER"
+echo "$USER:$PASS" | chpasswd
+echo "root:$PASS" | chpasswd
+echo "%wheel ALL=(ALL) ALL" > /etc/sudoers.d/wheel
+systemctl enable NetworkManager fstrim.timer
+EOF
+
+  # Bootloader: UEFI -> systemd-boot, иначе GRUB (без багов на старых ПК и ВМ)
+  if [[ -d /sys/firmware/efi ]]; then
+    say "[4/7] systemd-boot (UEFI)..."
+    arch-chroot /mnt bootctl install
+    UUID=$(blkid -s UUID -o value "$ROOT")
+    cat > /mnt/boot/loader/entries/falkon.conf <<EOF2
+title Falkon OS ($ED)
+linux /vmlinuz-linux-zen
+initrd /amd-ucode.img
+initrd /intel-ucode.img
+initrd /initramfs-linux-zen.img
+options root=UUID=$UUID rw quiet splash
+EOF2
+  else
+    say "[4/7] GRUB (BIOS/ВМ без EFI)..."
+    arch-chroot /mnt grub-install --target=i386-pc "$DISK"
+    arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+  fi
+
+  say "[5/7] Драйверы + твики (авто, включая виртуалки)..."
+  for t in falkon-drivers falkon-tweaks; do
+    [[ -f /usr/bin/$t ]] && cp /usr/bin/$t /mnt/usr/bin/ || true
+  done
+  arch-chroot /mnt falkon-drivers --auto || true
+  arch-chroot /mnt falkon-tweaks || true
+
+  say "[6/7] Редакция $ED + софт (ghostty/vscode/firefox/steam)..."
+  if [[ "$ED" == "desktop" ]]; then
+    arch-chroot /mnt pacman -S --needed --noconfirm plasma-desktop sddm dolphin konsole ghostty firefox code steam || true
+    arch-chroot /mnt systemctl enable sddm || true
+  elif [[ "$ED" == "tiling" ]]; then
+    arch-chroot /mnt pacman -S --needed --noconfirm hyprland kitty ghostty waybar wofi thunar firefox code steam sddm || true
+    arch-chroot /mnt systemctl enable sddm || true
+  else
+    say "Core: без GUI (<400МБ RAM). Доставить позже: sudo pacman -S plasma-desktop"
+  fi
+
+  say "[7/7] Финал..."
+  umount -R /mnt
+  say "ГОТОВО. Вытащи флешку и перезагрузись. Логин: $USER. Лог: $LOG"
+}
+
+main() {
+  need_root
+  DISK=$(pick_disk_gui)
+  [[ -z "$DISK" ]] && { err "Диск не выбран"; exit 1; }
+  say "Выбран: $DISK"
+  FOUND=$(detect_os_on "$DISK")
+  if [[ -n "$FOUND" ]]; then
+    say "На $DISK замечено: $FOUND"
+    if ! confirm_gui "На диске $DISK найдено:\n$FOUND\n\n<b>Очистить ВЕСЬ диск и поставить Falkon?</b>\nВсё на нём будет удалено!"; then
+      say "Отмена. Выбери другой диск."; exit 0
+    fi
+    # двойное подтверждение wipe (защита от случайного клика)
+    if ! confirm_gui "Точно-точно стереть <b>$DISK</b>? Это последнее предупреждение."; then
+      say "Отмена."; exit 0
+    fi
+  else
+    confirm_gui "Ставить Falkon на <b>$DISK</b>?\nДиск будет очищен." || exit 0
+  fi
+  # Данные пользователя
+  if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    vals=$(yad --form --title="Пользователь Falkon" --text="Придумай пользователя:" --field="Имя пользователя" "falkon" --field="Имя ПК" "falkon-pc" --field="Редакция:CB" "desktop!tiling!core" --field="Язык:CB" "ru_RU.UTF-8!uk_UA.UTF-8!en_US.UTF-8!zh_CN.UTF-8!ja_JP.UTF-8!es_ES.UTF-8!fr_FR.UTF-8!de_DE.UTF-8" --field="Пароль:H" "")
+    [[ -z "$vals" ]] && exit 0
+    IFS='|' read -r USER HOST ED LANGCODE PASS <<< "$vals"
+  else
+    read -rp "Пользователь [falkon]: " USER; USER=${USER:-falkon}
+    read -rp "Имя ПК [falkon-pc]: " HOST; HOST=${HOST:-falkon-pc}
+    read -rp "Редакция desktop/tiling/core [desktop]: " ED; ED=${ED:-desktop}
+    read -rp "Локаль [ru_RU.UTF-8]: " LANGCODE; LANGCODE=${LANGCODE:-ru_RU.UTF-8}
+    read -rsp "Пароль: " PASS; echo
+    [[ -z "$PASS" ]] && { err "Пустой пароль нельзя"; exit 1; }
+  fi
+  do_install "$DISK" "$USER" "$PASS" "$HOST" "$ED" "$LANGCODE"
+  command -v yad >/dev/null && yad --info --text="Готово! Перезагрузись." --timeout=5 || true
+}
+
+main

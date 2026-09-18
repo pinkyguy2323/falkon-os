@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# falkon-install - консольный установщик для Falkon Core (и остальных без GUI)
+# Упрощённый archinstall-подобный: разметка cfdisk вручную, потом этот скрипт.
+# Использование: sudo falkon-install
+set -euo pipefail
+echo "=== Falkon OS Core Installer ==="
+lsblk
+read -rp "Диск для установки (напр. /dev/sda, ДАННЫЕ БУДУТ СТЁРТЫ): " DISK
+read -rp "Имя хоста [falkon]: " HOST; HOST=${HOST:-falkon}
+read -rp "Имя пользователя: " USER
+read -rsp "Пароль: " PASS; echo
+read -rp "Редакция [core/desktop/tiling] (default core): " ED; ED=${ED:-core}
+
+echo "[1/6] Разметка $DISK (EFI 512M + root остальное, Btrfs)..."
+parted -s "$DISK" mklabel gpt mkpart ESP fat32 1MiB 513MiB set 1 esp on mkpart primary btrfs 513MiB 100%
+EFI="${DISK}1"; ROOT="${DISK}2"
+[[ "$DISK" == *nvme* ]] && { EFI="${DISK}p1"; ROOT="${DISK}p2"; }
+mkfs.fat -F32 "$EFI"
+mkfs.btrfs -f "$ROOT"
+mount "$ROOT" /mnt
+mkdir -p /mnt/boot; mount "$EFI" /mnt/boot
+
+echo "[2/6] Установка базы..."
+pacstrap -K /mnt base linux-zen linux-firmware networkmanager sudo neovim git reflector zram-generator yay-bin
+genfstab -U /mnt >> /mnt/etc/fstab
+
+echo "[3/6] Настройка системы..."
+arch-chroot /mnt /bin/bash <<EOF
+ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+hwclock --systohc
+echo "ru_RU.UTF-8 UTF-8" >> /etc/locale.gen
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+echo "LANG=ru_RU.UTF-8" > /etc/locale.conf
+echo "KEYMAP=ru" > /etc/vconsole.conf
+echo "$HOST" > /etc/hostname
+useradd -m -G wheel,video,audio,storage "$USER"
+echo "$USER:$PASS" | chpasswd
+echo "root:$PASS" | chpasswd
+echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+systemctl enable NetworkManager fstrim.timer
+bootctl install
+EOF
+
+cat > /mnt/boot/loader/entries/falkon.conf <<EOF
+title Falkon OS ($ED)
+linux /vmlinuz-linux-zen
+initrd /amd-ucode.img
+initrd /intel-ucode.img
+initrd /initramfs-linux-zen.img
+options root=UUID=$(blkid -s UUID -o value $ROOT) rw quiet splash
+EOF
+
+echo "[4/6] Драйверы и твики..."
+cp /usr/bin/falkon-drivers /mnt/usr/bin/ 2>/dev/null || true
+cp /usr/bin/falkon-tweaks /mnt/usr/bin/ 2>/dev/null || true
+arch-chroot /mnt falkon-drivers --auto || true
+arch-chroot /mnt falkon-tweaks || true
+
+echo "[5/6] Доустановка редакции $ED..."
+if [[ "$ED" == "desktop" ]]; then
+  arch-chroot /mnt pacman -S --needed --noconfirm plasma-desktop sddm konsole dolphin firefox
+  arch-chroot /mnt systemctl enable sddm
+elif [[ "$ED" == "tiling" ]]; then
+  arch-chroot /mnt pacman -S --needed --noconfirm hyprland kitty waybar wofi firefox sddm
+  arch-chroot /mnt systemctl enable sddm
+else
+  echo "Core: GUI не ставится. Потребление ~300МБ RAM. GUI можно доставить позже: sudo pacman -S plasma-desktop"
+fi
+
+echo "[6/6] Готово! umount и reboot"
+umount -R /mnt
+echo "Перезагрузись: reboot. Логин: $USER"

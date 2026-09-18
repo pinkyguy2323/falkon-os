@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# falkon-drivers - ГЛАВНАЯ ФИШКА Falkon OS: автоустановка драйверов
+# Детектит GPU / WiFi / Bluetooth / принтер / виртуалку и ставит нужное.
+# Работает и в Live ISO, и в установленной системе.
+# Использование: sudo falkon-drivers [--auto] [--gpu-only] [--wifi-only]
+set -euo pipefail
+
+AUTO=0; GPU_ONLY=0; WIFI_ONLY=0
+for a in "$@"; do case "$a" in --auto) AUTO=1;; --gpu-only) GPU_ONLY=1;; --wifi-only) WIFI_ONLY=1;; esac; done
+
+say() { echo -e "\e[1;34m[Falkon]\e[0m $*"; }
+ok()  { echo -e "\e[1;32m[OK]\e[0m $*"; }
+
+is_live() { [[ -d /run/archiso ]]; }
+
+PKGS=()
+
+detect_virt() {
+  if systemd-detect-virt -q; then
+    VIRT=$(systemd-detect-virt)
+    say "Виртуалка: $VIRT"
+    case "$VIRT" in
+      *oracle*) PKGS+=(virtualbox-guest-utils);;
+      *vmware*) PKGS+=(open-vm-tools xf86-video-vmware xf86-input-vmmouse);;
+      *qemu*|*kvm*) PKGS+=(qemu-guest-agent spice-vdagent xf86-video-qxl);;
+      *microsoft*) PKGS+=(hyperv);;
+    esac
+  fi
+}
+
+detect_gpu() {
+  say "Сканирую GPU..."
+  PCI=$(lspci -nnk 2>/dev/null | grep -i -E 'vga|3d|display' || true)
+  echo "$PCI"
+  # Всегда нужна база
+  PKGS+=(mesa vulkan-icd-loader lib32-mesa lib32-vulkan-icd-loader)
+
+  if echo "$PCI" | grep -qi nvidia; then
+    say "Найдена NVIDIA"
+    # Turing+ (GTX 16xx / RTX) -> nvidia-open, старые -> nvidia-dkms
+    PKGS+=(nvidia-dkms nvidia-utils lib32-nvidia-utils nvidia-settings nvidia-prime vulkan-nouveau)
+    # Для Wayland/Hyprland
+    PKGS+=(egl-wayland)
+  fi
+  if echo "$PCI" | grep -qi -E 'amd|ati|radeon'; then
+    say "Найдена AMD"
+    PKGS+=(xf86-video-amdgpu vulkan-radeon lib32-vulkan-radeon libva-mesa-driver mesa-vdpau rocm-opencl-runtime)
+  fi
+  if echo "$PCI" | grep -qi -E 'intel.*(hd|uhd|iris|graphics)|intel corporation.*graphics'; then
+    say "Найдена Intel"
+    PKGS+=(xf86-video-intel mesa vulkan-intel lib32-vulkan-intel intel-media-driver libva-intel-driver)
+  fi
+  if echo "$PCI" | grep -qi -E 'virtio|qxl|vmware|virtualbox'; then
+    say "Виртуальное видео"
+    PKGS+=(xf86-video-qxl xf86-video-vmware virtualbox-guest-utils)
+  fi
+}
+
+detect_wifi() {
+  say "Сканирую WiFi / Bluetooth..."
+  NET=$(lspci -nnk 2>/dev/null; lsusb 2>/dev/null || true)
+  # Broadcom - самая проблемная, ставим сразу
+  if echo "$NET" | grep -qi broadcom; then
+    say "Найден Broadcom WiFi"
+    PKGS+=(broadcom-wl-dkms)
+  fi
+  if echo "$NET" | grep -qi -E 'realtek.*(8821|8852|8723|8192)'; then
+    say "Найден Realtek WiFi"
+    PKGS+=(rtw88-dkms-git rtw89-dkms-git || true)
+    # yay-версии; если нет AUR - пропустим, поставим из ядра
+    PKGS+=(linux-firmware-realtek)
+  fi
+  # Intel / Mediatek обычно уже в linux-firmware, но доустановим:
+  PKGS+=(linux-firmware linux-firmware-whence iwd wireless_tools wpa_supplicant)
+  PKGS+=(bluez bluez-utils blueman)
+}
+
+detect_cpu() {
+  say "Сканирую CPU..."
+  if grep -qi amd /proc/cpuinfo; then PKGS+=(amd-ucode); fi
+  if grep -qi intel /proc/cpuinfo; then PKGS+=(intel-ucode); fi
+}
+
+detect_printer() {
+  if lsusb 2>/dev/null | grep -qi -E 'printer|canon|hp|epson|brother'; then
+    say "Найден принтер"
+    PKGS+=(cups cups-pdf gutenprint foomatic-db-engine hplip)
+  else
+    PKGS+=(cups cups-pdf)
+  fi
+}
+
+install_pkgs() {
+  # Чистим несуществующие (для AUR-пакетов)
+  say "Установка: ${PKGS[*]}"
+  # Сначала официальные репозитории
+  if ! pacman -S --needed --noconfirm "${PKGS[@]}" 2>/tmp/falkon-drv-err.log; then
+    say "Часть пакетов не в официальных репах, пробую по одному + AUR..."
+    for p in "${PKGS[@]}"; do
+      pacman -S --needed --noconfirm "$p" 2>/dev/null || {
+        if command -v yay >/dev/null; then yay -S --needed --noconfirm "$p" 2>/dev/null || say "Пропуск: $p";
+        else say "Пропуск (нет в репах, нужен yay): $p"; fi
+      }
+    done
+  fi
+  ok "Драйверы установлены"
+}
+
+enable_services() {
+  systemctl enable --now NetworkManager 2>/dev/null || true
+  systemctl enable --now bluetooth 2>/dev/null || true
+  systemctl enable --now cups 2>/dev/null || true
+  systemctl enable --now fstrim.timer 2>/dev/null || true
+  ok "Сервисы включены"
+}
+
+main() {
+  say "Falkon Drivers v1.0 - автоустановка драйверов"
+  detect_cpu
+  detect_virt
+  if [[ $WIFI_ONLY -eq 0 ]]; then detect_gpu; fi
+  if [[ $GPU_ONLY -eq 0 ]]; then detect_wifi; detect_printer; fi
+  # Убираем дубли
+  mapfile -t PKGS < <(printf '%s\n' "${PKGS[@]}" | sort -u)
+  if [[ $AUTO -eq 0 && -t 0 ]]; then
+    echo "Будут установлены: ${PKGS[*]}"
+    read -rp "Продолжить? [Y/n] " ans
+    [[ "${ans:-Y}" =~ ^[Nn] ]] && exit 0
+  fi
+  install_pkgs
+  enable_services
+  # mkinitcpio если ставили nvidia/ucode
+  if printf '%s\n' "${PKGS[@]}" | grep -q nvidia; then
+    say "Пересобираю initramfs для NVIDIA..."
+    mkinitcpio -P || true
+  fi
+  ok "Готово! Перезагрузись если менялось видео-ядро."
+}
+
+main

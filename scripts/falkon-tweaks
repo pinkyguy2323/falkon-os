@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# falkon-tweaks - производительность из коробки (все твики обратимы)
+# - linux-zen, zram, swappiness, pacman, SSD trim, boot
+set -euo pipefail
+
+apply() {
+  echo "[Falkon] Применяю твики производительности..."
+
+  # 1. zram (вместо свопа, критично для 2-8 ГБ RAM)
+  mkdir -p /etc/systemd/zram-generator.conf.d
+  cat > /etc/systemd/zram-generator.conf <<'EOF'
+[zram0]
+zram-size = min(ram / 2, 4096)
+compression-algorithm = zstd
+swap-priority = 100
+EOF
+
+  # 2. sysctl: отзывчивость десктопа
+  cat > /etc/sysctl.d/99-falkon.conf <<'EOF'
+vm.swappiness = 180
+vm.watermark_boost_factor = 0
+vm.page-cluster = 0
+vm.dirty_ratio = 3
+vm.dirty_background_ratio = 1
+kernel.nmi_watchdog = 0
+kernel.sched_autogroup_enabled = 1
+net.ipv4.tcp_fastopen = 3
+EOF
+  sysctl --system >/dev/null || true
+
+  # 3. pacman: параллельные загрузки + цвет
+  sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 5/' /etc/pacman.conf || true
+  grep -q ILoveCandy /etc/pacman.conf || echo "ILoveCandy" >> /etc/pacman.conf
+  grep -q "^Color" /etc/pacman.conf || sed -i 's/^#Color/Color/' /etc/pacman.conf
+
+  # 4. makepkg: сборка AUR на всех ядрах
+  NPROC=$(nproc)
+  sed -i "s/^#MAKEFLAGS.*/MAKEFLAGS=\"-j$NPROC\"/" /etc/makepkg.conf || true
+  sed -i 's/^COMPRESSXZ.*/COMPRESSXZ=(xz -c -z - --threads=0)/' /etc/makepkg.conf || true
+
+  # 5. SSD trim
+  systemctl enable fstrim.timer 2>/dev/null || true
+
+  # 6. Ускорение загрузки: NetworkManager-wait off, journal limit
+  systemctl disable NetworkManager-wait-online.service 2>/dev/null || true
+  mkdir -p /etc/systemd/journald.conf.d
+  echo -e "[Journal]\nSystemMaxUse=200M" > /etc/systemd/journald.conf.d/99-falkon.conf
+
+  # 7. Для Core-режима: отключение лишнего (если нет GUI - экономим ~300МБ RAM)
+  if ! command -v startx >/dev/null && ! command -v Hyprland >/dev/null && ! command -v plasmashell >/dev/null; then
+    echo "[Falkon] Core-режим: GUI не найден, включаю агрессивную экономию RAM"
+    systemctl disable bluetooth.service 2>/dev/null || true
+    systemctl disable cups.service 2>/dev/null || true
+  fi
+
+  echo "[Falkon] Готово. Эффект: меньше RAM, быстрее pacman и загрузка."
+}
+
+apply

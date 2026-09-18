@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# falkon-customizer - ОЧЕНЬ КРУТАЯ КАСТОМИЗАЦИЯ Falkon OS
+# Темы (45) + эффекты + пресеты + всё в одном окне
+# GUI: yad | TUI: dialog/bash
+set -euo pipefail
+
+HYPR="$HOME/.config/hypr/hyprland.conf"
+THEMES_DB="/usr/share/falkon/themes/themes.conf"
+[[ -f "$(dirname "$0")/../airootfs/usr/share/falkon/themes/themes.conf" ]] && THEMES_DB="$(dirname "$0")/../airootfs/usr/share/falkon/themes/themes.conf"
+
+theme_list() { cut -d'|' -f2 "$THEMES_DB"; }
+
+apply_preset() { # $1 = preset
+  case "$1" in
+    "Минимализм")
+      set_hypr "gaps_in" "2"; set_hypr "gaps_out" "5"; set_hypr "rounding" "0"
+      set_blur off; set_anim off; falkon-themes apply "Ghost White" >/dev/null;;
+    "Киберпанк")
+      falkon-themes apply "Cyberpunk Neon" >/dev/null
+      set_hypr "gaps_in" "5"; set_hypr "gaps_out" "12"; set_hypr "rounding" "12"
+      set_blur on; set_anim on;;
+    "macOS-like")
+      falkon-themes apply "Catppuccin Frappe" >/dev/null
+      set_hypr "gaps_in" "8"; set_hypr "gaps_out" "15"; set_hypr "rounding" "15"
+      set_blur on; set_anim on; waybar_pos bottom;;
+    "Omarchy-like")
+      falkon-themes apply "Tokyo Night" >/dev/null
+      set_hypr "gaps_in" "5"; set_hypr "gaps_out" "10"; set_hypr "rounding" "10"
+      set_blur on; set_anim on; waybar_pos top;;
+    "Windows-like")
+      falkon-themes apply "Slate Gray" >/dev/null
+      set_hypr "gaps_in" "0"; set_hypr "gaps_out" "0"; set_hypr "rounding" "8"
+      set_blur off; set_anim on; waybar_pos bottom;;
+  esac
+  hyprctl reload 2>/dev/null || true
+  echo "Пресет применён: $1"
+}
+
+set_hypr() { # $1=key $2=value
+  [[ -f "$HYPR" ]] || return 0
+  if grep -q "^\s*$1" "$HYPR"; then sed -i "s/^\s*$1.*/$1 = $2/" "$HYPR"
+  else echo "$1 = $2" >> "$HYPR"; fi
+}
+
+set_blur() {
+  [[ -f "$HYPR" ]] || return 0
+  if [[ "$1" == "on" ]]; then sed -i 's/enabled = false/enabled = true/' "$HYPR"
+  else sed -i 's/enabled = true/enabled = false/' "$HYPR"; fi
+}
+set_anim() {
+  [[ -f "$HYPR" ]] || return 0
+  if [[ "$1" == "on" ]]; then sed -i '0,/enabled = false/s//enabled = true/' "$HYPR"
+  else sed -i 's/animations {/animations {\n  enabled = false/' "$HYPR" 2>/dev/null || true; fi
+}
+waybar_pos() { # top/bottom
+  local cfg="$HOME/.config/waybar/config"
+  [[ -f "$cfg" ]] || return 0
+  sed -i "s/\"position\".*/\"position\": \"$1\",/" "$cfg"
+  pkill -SIGUSR2 waybar 2>/dev/null || true
+}
+set_terminal() { # ghostty/kitty/konsole
+  mkdir -p ~/.config/falkon
+  echo "$1" > ~/.config/falkon/terminal
+  [[ -f "$HYPR" ]] && sed -i "s/^\$terminal.*/\\$terminal = $1/" "$HYPR" || true
+  echo "Терминал по умолчанию: $1 (Super+Enter)"
+}
+
+tui() {
+  while true; do clear
+    echo "=== Falkon Customizer ==="
+    echo "Тема сейчас: $(falkon-themes current 2>/dev/null || echo ?) "
+    echo "1) Выбрать тему из 45"
+    echo "2) Случайная тема"
+    echo "3) Пресеты: Минимализм/Киберпанк/macOS/Omarchy/Windows"
+    echo "4) Blur вкл/выкл"
+    echo "5) Gaps/Rounding (ввести числа)"
+    echo "6) Waybar сверху/снизу"
+    echo "7) Терминал: ghostty/kitty/konsole"
+    echo "0) Выход"
+    read -rp "> " c
+    case "$c" in
+      1) theme_list | nl; read -rp "Номер/имя: " t
+         name=$(theme_list | sed -n "${t}p"); [[ -z "$name" ]] && name="$t"
+         falkon-themes apply "$name";;
+      2) falkon-themes random;;
+      3) echo "minimal/cyber/macos/omarchy/windows"; read -rp "> " p
+         case "$p" in minimal*) apply_preset "Минимализм";; cyber*) apply_preset "Киберпанк";; mac*) apply_preset "macOS-like";; oma*) apply_preset "Omarchy-like";; win*) apply_preset "Windows-like";; esac;;
+      4) read -rp "on/off: " b; set_blur "$b"; hyprctl reload 2>/dev/null || true;;
+      5) read -rp "gaps_in gaps_out rounding (напр. 5 10 10): " a b c2; set_hypr gaps_in "$a"; set_hypr gaps_out "$b"; set_hypr rounding "$c2"; hyprctl reload 2>/dev/null || true;;
+      6) read -rp "top/bottom: " w; waybar_pos "$w";;
+      7) read -rp "ghostty/kitty/konsole: " term; set_terminal "$term";;
+      0) exit 0;;
+    esac
+    read -rp "Enter..."
+  done
+}
+
+gui() {
+  # Вкладка 1: темы списком с живым применением
+  THEME=$(theme_list | yad --list --title="Falkon Customizer - 45 тем" --text="Выбери тему (применится сразу):" --column="Тема (45 встроенных)" --width=400 --height=500 --search-column=1 --button="Случайная:3" --button="OK:0" --button="Пресеты:2" --button="Выход:1")
+  ret=$?
+  if [[ $ret -eq 3 ]]; then falkon-themes random; gui; return; fi
+  if [[ $ret -eq 2 ]]; then
+    PRESET=$(printf "Минимализм\nКиберпанк\nmacOS-like\nOmarchy-like\nWindows-like" | yad --list --title="Пресеты" --column="Пресет" --width=300 --height=300)
+    [[ -n "$PRESET" ]] && apply_preset "$(echo "$PRESET" | cut -d'|' -f1)"
+    gui; return
+  fi
+  THEME=$(echo "$THEME" | cut -d'|' -f1)
+  [[ -n "$THEME" ]] && falkon-themes apply "$THEME"
+
+  # Вкладка 2: эффекты
+  EFF=$(yad --form --title="Эффекты и зазоры" --text="Тонкая настройка Hyprland" \
+    --field="Gaps in:NUM" "5!0..30!1" --field="Gaps out:NUM" "10!0..40!1" --field="Rounding:NUM" "10!0..25!1" \
+    --field="Blur:CB" "on!off" --field="Waybar:CB" "top!bottom" --field="Терминал:CB" "ghostty!kitty!konsole!alacritty")
+  [[ -n "$EFF" ]] || exit 0
+  IFS='|' read -r gi go round blur wpos term <<< "$EFF"
+  set_hypr gaps_in "${gi%%.*}"; set_hypr gaps_out "${go%%.*}"; set_hypr rounding "${round%%.*}"
+  set_blur "$blur"; waybar_pos "$wpos"; set_terminal "$term"
+  hyprctl reload 2>/dev/null || true
+  yad --info --text="Готово! Тема + эффекты применены." --timeout=2
+}
+
+if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v yad >/dev/null; then gui; else tui; fi

@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# falkon-wallpaper - смена обоев в 1-2 клика
+#   Super+W = следующие обои | falkon-wallpaper next/random/set <файл> / gui
+# Работает везде: Hyprland (hyprpaper) + KDE Plasma + TTY/feh
+set -euo pipefail
+WALL_DIR="$HOME/Pictures/Wallpapers"
+SYS_DIR="/usr/share/falkon/wallpapers"
+STATE="$HOME/.config/falkon/wallpaper-index"
+
+mkdir -p "$WALL_DIR" ~/.config/falkon
+
+# 1. Если своих обоев нет - генерируем 12 фирменных градиентов под 45 тем (без интернета)
+gen_defaults() {
+  mkdir -p "$SYS_DIR" 2>/dev/null || true
+  local dir="$WALL_DIR"
+  [[ -w "$SYS_DIR" ]] && dir="$SYS_DIR"
+  [[ -f "$dir/01-falkon-swift.png" ]] && return 0
+  command -v convert >/dev/null || return 0
+  echo "[Falkon] Генерирую 12 фирменных обоев..."
+  convert -size 1920x1080 gradient:'#1a1b26'-'#7aa2f7' "$dir/01-falkon-swift.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#0d1117'-'#58a6ff' "$dir/02-midnight-pro.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#282a36'-'#bd93f9' "$dir/03-dracula.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#2e3440'-'#88c0d0' "$dir/04-nord.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#1e1e2e'-'#cba6f7' "$dir/05-mocha.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#0f0f1a'-'#ff00ff' "$dir/06-cyberpunk.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#000000'-'#00ff00' "$dir/07-matrix.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#001e3c'-'#00b4d8' "$dir/08-ocean.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#2b1d3a'-'#ff6b6b' "$dir/09-sunset.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#1b2a1b'-'#52b788' "$dir/10-forest.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#fff0f3'-'#ff4d6d' "$dir/11-sakura.png" 2>/dev/null || true
+  convert -size 1920x1080 gradient:'#1a0a00'-'#ff4500' "$dir/12-volcano.png" 2>/dev/null || true
+}
+
+all_wallpapers() {
+  gen_defaults
+  { ls -1 "$SYS_DIR"/*.{png,jpg,jpeg,webp} 2>/dev/null; ls -1 "$WALL_DIR"/*.{png,jpg,jpeg,webp} 2>/dev/null; } | sort -u
+}
+
+apply_file() { # $1=path
+  local f="$1"
+  echo "[Falkon] Обои: $f"
+  # Hyprland
+  if command -v hyprctl >/dev/null && [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+    mkdir -p ~/.config/hypr
+    cat > ~/.config/hypr/hyprpaper.conf <<EOF
+preload = $f
+wallpaper = ,$f
+splash = false
+EOF
+    pkill hyprpaper 2>/dev/null || true
+    hyprpaper >/dev/null 2>&1 &
+    hyprctl hyprpaper preload "$f" 2>/dev/null || true
+    hyprctl hyprpaper wallpaper ",$f" 2>/dev/null || true
+  fi
+  # KDE Plasma
+  if command -v plasma-apply-wallpaperimage >/dev/null && pgrep plasmashell >/dev/null 2>&1; then
+    plasma-apply-wallpaperimage "$f" 2>/dev/null || true
+  fi
+  # Запасной: feh
+  command -v feh >/dev/null && feh --bg-fill "$f" 2>/dev/null || true
+  echo "$f" > ~/.config/falkon/wallpaper-current
+}
+
+cmd_next() {
+  mapfile -t arr < <(all_wallpapers)
+  [[ ${#arr[@]} -eq 0 ]] && { echo "Кинь картинки в $WALL_DIR"; exit 1; }
+  idx=$(cat "$STATE" 2>/dev/null || echo 0)
+  idx=$(( (idx+1) % ${#arr[@]} ))
+  echo "$idx" > "$STATE"
+  apply_file "${arr[$idx]}"
+}
+cmd_random() {
+  mapfile -t arr < <(all_wallpapers)
+  [[ ${#arr[@]} -eq 0 ]] && { echo "Кинь картинки в $WALL_DIR"; exit 1; }
+  apply_file "${arr[RANDOM % ${#arr[@]}]}"
+}
+cmd_gui() {
+  mapfile -t arr < <(all_wallpapers)
+  [[ ${#arr[@]} -eq 0 ]] && { yad --info --text="Кинь картинки в $WALL_DIR" 2>/dev/null || echo "Кинь картинки в $WALL_DIR"; exit 1; }
+  # 1 клик - выбор, 2 клик - ОК. Превью через имена (лёгкая ОС - без тяжёлых превью)
+  sel=$(printf '%s\n' "${arr[@]}" | xargs -n1 basename | yad --list --title="Falkon Обои - 1 клик" --text="Выбери обои (применятся сразу):" --column="Файл" --width=400 --height=400 --search-column=1 --button="Следующие:3" --button="Случайные:2" --button="OK:0")
+  ret=$?
+  if [[ $ret -eq 3 ]]; then cmd_next; cmd_gui; return; fi
+  if [[ $ret -eq 2 ]]; then cmd_random; cmd_gui; return; fi
+  sel=$(echo "$sel" | cut -d'|' -f1)
+  [[ -n "$sel" ]] || exit 0
+  # найти полный путь
+  for f in "${arr[@]}"; do [[ "$(basename "$f")" == "$sel" ]] && apply_file "$f"; done
+}
+
+case "${1:-gui}" in
+  next) cmd_next;;
+  random|shuffle) cmd_random;;
+  set) apply_file "${2:?укажи файл}";;
+  gui|"") if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v yad >/dev/null; then cmd_gui; else mapfile -t a < <(all_wallpapers); printf '%s\n' "${a[@]}" | nl; read -rp "Номер: " n; apply_file "${a[$((n-1))]}"; fi;;
+esac

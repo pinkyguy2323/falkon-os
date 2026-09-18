@@ -1,0 +1,12 @@
+# Falkon OS .bashrc additions - Arch + удобство
+alias ls='eza --icons 2>/dev/null || ls --color=auto'
+alias ll='eza -l --icons 2>/dev/null || ls -l'
+alias update='sudo pacman -Syu'
+alias install='sudo pacman -S'
+alias search='pacman -Ss'
+alias drivers='sudo falkon-drivers'
+alias welcome='falkon-welcome'
+alias tweak='sudo falkon-tweaks'
+eval "$(starship init bash 2>/dev/null)"
+eval "$(zoxide init bash 2>/dev/null)"
+fastfetch 2>/dev/null || true
