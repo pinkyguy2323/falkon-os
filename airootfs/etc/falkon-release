@@ -1,0 +1,4 @@
+# Falkon OS version stamp. Обновляется сборкой ISO и командой falkon-update.
+# Формат версии = тег релиза GitHub (v1.4, v1.5...). Не трогай руками.
+FALKON_VERSION=dev
+FALKON_EDITION=unknown

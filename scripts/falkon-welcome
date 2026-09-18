@@ -32,6 +32,7 @@ menu_tui() {
     echo "8) Кастомизация (blur/gaps/waybar/терминал)"
     echo "9) Обои (следующие/случайные)"
     echo "10) Язык (12 встроенных)"
+    echo "11) Обновить систему (с GitHub)"
     echo "0) Выход"
     read -rp "> " c
     case "$c" in
@@ -45,6 +46,7 @@ menu_tui() {
       8) falkon-customizer;;
       9) falkon-wallpaper next;;
       10) falkon-lang;;
+      11) sudo falkon-update;;
       0) exit 0;;
     esac
     read -rp "Готово. Enter..."
@@ -55,7 +57,7 @@ menu_gui() {
   while true; do
     CHOICE=$(yad --list --radiolist --width=600 --height=520 --title="Falkon OS Welcome" --text="Добро пожаловать в Falkon OS!\n45 тем + 12 языков + обои в 1 клик | Терминал: ghostty" \
       --column="Выбрать" --column="Действие" \
-      FALSE "Быстрые зеркала" FALSE "Авто-драйверы" FALSE "Производительность" FALSE "Chaotic-AUR" FALSE "Flatpak" FALSE "Темы (45)" FALSE "Кастомизация" FALSE "Обои" FALSE "Язык (12)" FALSE "Выход" | cut -d'|' -f2)
+      FALSE "Быстрые зеркала" FALSE "Авто-драйверы" FALSE "Производительность" FALSE "Chaotic-AUR" FALSE "Flatpak"       FALSE "Темы (45)" FALSE "Кастомизация" FALSE "Обои" FALSE "Язык (12)" FALSE "Обновить систему" FALSE "Выход" | cut -d'|' -f2)
     case "$CHOICE" in
       "Быстрые зеркала") xterm -e "sudo reflector --latest 20 --sort rate --save /etc/pacman.d/mirrorlist; sudo pacman -Sy; read -p Done" ;;
       "Авто-драйверы") xterm -e "sudo falkon-drivers; read -p Done" ;;
@@ -66,6 +68,7 @@ menu_gui() {
       "Кастомизация") falkon-customizer ;;
       "Обои") falkon-wallpaper gui ;;
       "Язык (12)") falkon-lang gui ;;
+      "Обновить систему") xterm -e "sudo falkon-update; read -p Done" ;;
       *) exit 0 ;;
     esac
   done

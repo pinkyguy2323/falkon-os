@@ -94,6 +94,7 @@ falkon-customizer    # 45 тем + blur, зазоры, скругления, п�
 falkon-themes apply "Tokyo Night"   # тема одной строкой (везде сразу)
 falkon-wallpaper next               # следующие обои
 falkon-lang                         # смена языка из 12
+sudo falkon-update   # проверить GitHub, скачать обновление, применить после перезагрузки
 sudo falkon-drivers  # пересканировать железо
 sudo falkon-tweaks   # применить ускорения заново
 ```

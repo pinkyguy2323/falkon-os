@@ -23,6 +23,11 @@ need_root() {
 
 install_deps() {
   pacman -Sy --needed --noconfirm archiso git reflector rsync squashfs-tools dosfstools grub syslinux
+  # Быстрые зеркала ОБЯЗАТЕЛЬНЫ: на дефолтном mirrorlist качание виснет
+  # на мёртвых серверах (симптом: прогресс стоит на ~49% часами).
+  echo "[Falkon] Обновляю зеркала (reflector)..."
+  reflector --latest 30 --protocol https --sort rate --save /etc/pacman.d/mirrorlist || true
+  pacman -Sy || true
 }
 
 prepare_profile() {
@@ -53,12 +58,16 @@ prepare_profile() {
   # --- airootfs: штатный releng + оверлей Falkon ---
   cp -a "$HERE/airootfs/." "$dst/airootfs/"
   mkdir -p "$dst/airootfs/usr/bin" "$dst/airootfs/usr/share/falkon/themes"
-  for t in falkon-drivers falkon-tweaks falkon-welcome falkon-themes falkon-customizer falkon-wallpaper falkon-lang falkon-install falkon-install-easy; do
+  for t in falkon-drivers falkon-tweaks falkon-welcome falkon-themes falkon-customizer falkon-wallpaper falkon-lang falkon-install falkon-install-easy falkon-update; do
     [[ -f "$HERE/scripts/$t" ]] && cp -a "$HERE/scripts/$t" "$dst/airootfs/usr/bin/$t"
   done
   cp -a "$HERE/airootfs/usr/share/falkon/themes/." "$dst/airootfs/usr/share/falkon/themes/" 2>/dev/null || true
   cp -a "$HERE/airootfs/usr/share/falkon/lang.conf" "$dst/airootfs/usr/share/falkon/" 2>/dev/null || true
   # Ярлыки ставятся из airootfs/usr/share/applications (Установить Falkon, Welcome, Темы)
+
+  # --- Штамп версии для falkon-update (тег git, иначе дата) ---
+  FVER="$(git -C "$HERE" describe --tags 2>/dev/null || date +%Y.%m.%d)"
+  printf 'FALKON_VERSION=%s\nFALKON_EDITION=%s\n' "$FVER" "$flavor" > "$dst/airootfs/etc/falkon-release"
 
   # --- Права 0755 только для файлов, которые реально есть (mkarchiso строгий) ---
   {

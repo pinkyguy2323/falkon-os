@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# falkon-update - обновления Falkon OS с GitHub
+#   falkon-update          # проверить версию; если есть новее - скачать, применить после перезагрузки
+#   falkon-update check    # только показать текущая/последняя версия
+#   falkon-update --now    # скачать и применить СРАЗУ, без перезагрузки
+# Как работает:
+#   1. Смотрит /etc/falkon-release и последний релиз на GitHub (api.github.com).
+#   2. Скачивает обновления СИСТЕМЫ (pacman -Syuw, только загрузка) и свежие
+#      ИНСТРУМЕНТЫ Falkon (tarball тега) в /var/cache/falkon-update, ставит флаг pending.
+#   3. При следующей загрузке systemd-сервис falkon-update-apply всё устанавливает
+#      до входа в систему. Лог: /var/log/falkon-update.log
+set -euo pipefail
+
+REPO="pinkyguy2323/falkon-os"
+STAGE="/var/cache/falkon-update"
+FLAG="/var/lib/falkon-update/pending"
+LOG="/var/log/falkon-update.log"
+
+say() { echo -e "\e[1;34m[Falkon]\e[0m $*"; }
+ok()  { echo -e "\e[1;32m[OK]\e[0m $*"; }
+err() { echo -e "\e[1;31m[FAIL]\e[0m $*"; }
+log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
+
+need_root() { [[ $EUID -eq 0 ]] || { err "Нужно root: запусти через sudo"; exit 1; }; }
+as_root() { if [[ $EUID -eq 0 ]]; then "$@"; else sudo "$@"; fi; }
+
+current_version() {
+  if [[ -f /etc/falkon-release ]]; then
+    # shellcheck disable=SC1091
+    source /etc/falkon-release
+    echo "${FALKON_VERSION:-unknown}"
+  else
+    echo "unknown"
+  fi
+}
+
+latest_tag() {
+  curl -sSL --max-time 20 "https://api.github.com/repos/$REPO/releases/latest" \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1
+}
+
+# 0 = TAG новее CUR
+is_newer() {
+  local cur="$1" tag="$2"
+  [[ -n "$tag" && "$cur" != "$tag" ]] || return 1
+  [[ "$(printf '%s\n%s\n' "$cur" "$tag" | sort -V | tail -1)" == "$tag" ]]
+}
+
+cmd_check() {
+  local cur tag
+  cur=$(current_version)
+  say "Установлено: $cur"
+  tag=$(latest_tag || true)
+  if [[ -z "$tag" ]]; then err "Нет связи с GitHub. Проверь интернет."; return 1; fi
+  say "На GitHub:  $tag"
+  if is_newer "$cur" "$tag"; then
+    say "Есть обновление! Скачать: sudo falkon-update"
+    return 2
+  else
+    ok "У тебя последняя версия."
+    return 0
+  fi
+}
+
+cmd_download() {
+  local tag="$1"
+  need_root
+  say "Качаю обновление $tag (система + инструменты Falkon)..."
+  mkdir -p "$STAGE/pkgs" "$(dirname "$FLAG")"
+  log "download $tag started"
+  # 1. Система: только загрузка, установка будет после перезагрузки
+  if ! pacman -Syuw --noconfirm --cachedir "$STAGE/pkgs"; then
+    err "Не скачались пакеты. Проверь интернет и зеркала."
+    return 1
+  fi
+  # 2. Инструменты Falkon: свежие скрипты, темы, языки из тега
+  rm -rf "$STAGE/tools"
+  mkdir -p "$STAGE/tools"
+  if ! curl -sSL --max-time 60 "https://github.com/$REPO/archive/refs/tags/$tag.tar.gz" -o "$STAGE/falkon-$tag.tar.gz"; then
+    err "Не скачался tarball $tag с GitHub."
+    return 1
+  fi
+  tar xzf "$STAGE/falkon-$tag.tar.gz" -C "$STAGE/tools" --strip-components=1
+  echo "$tag" > "$FLAG"
+  as_root systemctl enable falkon-update-apply.service 2>/dev/null || true
+  log "download $tag staged, pending reboot"
+  ok "Обновление $tag скачано. Применится при следующей загрузке."
+}
+
+cmd_apply_staged() {
+  need_root
+  [[ -f "$FLAG" ]] || { say "Ожидающих обновлений нет."; return 0; }
+  local tag
+  tag=$(cat "$FLAG")
+  say "Применяю обновление $tag..."
+  log "apply $tag started"
+  # 1. Инструменты Falkon
+  if [[ -d "$STAGE/tools/scripts" ]]; then
+    cp -a "$STAGE"/tools/scripts/falkon-* /usr/bin/
+    chmod 755 /usr/bin/falkon-*
+    ok "Скрипты Falkon обновлены"
+  fi
+  [[ -d "$STAGE/tools/airootfs/usr/share/falkon/themes" ]] && {
+    mkdir -p /usr/share/falkon/themes
+    cp -a "$STAGE"/tools/airootfs/usr/share/falkon/themes/. /usr/share/falkon/themes/
+  }
+  [[ -f "$STAGE/tools/airootfs/usr/share/falkon/lang.conf" ]] && {
+    mkdir -p /usr/share/falkon
+    cp -a "$STAGE/tools/airootfs/usr/share/falkon/lang.conf" /usr/share/falkon/
+  }
+  [[ -d "$STAGE/tools/airootfs/usr/share/applications" ]] && {
+    cp -a "$STAGE"/tools/airootfs/usr/share/applications/falkon-*.desktop /usr/share/applications/ 2>/dev/null || true
+  }
+  # 2. Система из кэша (офлайн, интернет не нужен)
+  shopt -s nullglob
+  local pkgs=("$STAGE"/pkgs/*.pkg.tar.zst)
+  if [[ ${#pkgs[@]} -gt 0 ]]; then
+    pacman -U --needed --noconfirm "${pkgs[@]}" || say "Часть пакетов пропущена, система всё равно новее."
+  else
+    say "Кэш пакетов пуст, обновлены только инструменты Falkon."
+  fi
+  # 3. Штамп версии (редакцию сохраняем)
+  local ed="unknown"
+  [[ -f /etc/falkon-release ]] && ed=$(grep -E '^FALKON_EDITION=' /etc/falkon-release | cut -d= -f2 || echo unknown)
+  printf 'FALKON_VERSION=%s\nFALKON_EDITION=%s\n' "$tag" "$ed" > /etc/falkon-release
+  rm -f "$FLAG"
+  log "apply $tag done"
+  ok "Готово! Версия: $tag"
+}
+
+case "${1:-}" in
+  check) cmd_check;;
+  apply-staged) cmd_apply_staged;;  # вызывает systemd при загрузке, руками не надо
+  --now)
+    need_root
+    cur=$(current_version); tag=$(latest_tag || true)
+    [[ -z "$tag" ]] && { err "Нет связи с GitHub."; exit 1; }
+    if is_newer "$cur" "$tag"; then cmd_download "$tag"; cmd_apply_staged; else ok "Уже последняя ($cur)."; fi;;
+  "")
+    cur=$(current_version); tag=$(latest_tag || true)
+    [[ -z "$tag" ]] && { err "Нет связи с GitHub. Проверь интернет."; exit 1; }
+    say "Установлено: $cur / На GitHub: $tag"
+    if is_newer "$cur" "$tag"; then
+      cmd_download "$tag"
+      read -rp "Перезагрузить сейчас, чтобы применить? [y/N] " a
+      [[ "$a" =~ ^[YyДд] ]] && as_root reboot
+    else
+      ok "Обновлений нет."
+    fi;;
+  *) echo "falkon-update [check|--now]"; exit 1;;
+esac

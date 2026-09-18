@@ -1,0 +1,13 @@
+[Unit]
+Description=Falkon OS staged update applier (runs once when update is pending)
+ConditionPathExists=/var/lib/falkon-update/pending
+After=network-online.target
+Before=display-manager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/falkon-update apply-staged
+
+[Install]
+WantedBy=multi-user.target
