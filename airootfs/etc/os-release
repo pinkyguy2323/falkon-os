@@ -1,0 +1,12 @@
+# Falkon OS: имя для fastfetch/neofetch и "О системе".
+# ID оставлен arch специально: иначе ломаются yay, AUR-хелперы и Steam.
+# Совместимость 100% Arch, лицо - Falkon.
+NAME="Falkon OS"
+PRETTY_NAME="Falkon OS Swift"
+ID=arch
+ID_LIKE=arch
+BUILD_ID=rolling
+VARIANT="Swift"
+VARIANT_ID=swift
+HOME_URL="https://github.com/pinkyguy2323/falkon-os"
+SUPPORT_URL="https://github.com/pinkyguy2323/falkon-os/issues"

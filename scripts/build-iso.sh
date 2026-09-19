@@ -55,6 +55,11 @@ prepare_profile() {
   } | sort -u >> "$dst/packages.x86_64"
   cp "$HERE/profiles/pacman.conf" "$dst/pacman.conf"
 
+  # --- Falkon-брендинг загрузчиков: в меню только "Falkon OS", никакого "Arch" ---
+  # Трогаем только отображаемый текст; параметры ядра (archisobasedir и т.д.) не трогаем.
+  grep -rl "Arch Linux" "$dst/syslinux" "$dst/grub" "$dst/efiboot" 2>/dev/null | xargs -r sed -i 's/Arch Linux/Falkon OS/g'
+  grep -rl "Arch Linux" "$dst/syslinux" "$dst/grub" "$dst/efiboot" 2>/dev/null | xargs -r sed -i 's/Arch/Falkon/g'
+
   # --- airootfs: штатный releng + оверлей Falkon ---
   cp -a "$HERE/airootfs/." "$dst/airootfs/"
   mkdir -p "$dst/airootfs/usr/bin" "$dst/airootfs/usr/share/falkon/themes"

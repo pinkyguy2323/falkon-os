@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# falkon-install-easy - ИЗИ-установщик Falkon OS (без багов)
-#   1. Показывает диски человеческим языком (размер/модель, а не только /dev/sda)
-#   2. Детектит Windows/другую ОС через os-prober + метки разделов
-#   3. Если ОС найдена -> спрашивает "Очистить диск полностью?" -> после очистки сразу ставит
-#   4. Защиты от дурака: нельзя поставить на флешку с Live, нельзя на пустое, двойное подтверждение wipe
+# falkon-install-easy - установщик Falkon OS: как у нормальных людей
+#   Система НЕ качается из интернета, а копируется с ISO (как Calamares unpackfs).
+#   5-10 минут, почти без трафика. Сеть нужна только для yay и AI-ассистентов в конце.
+#   1. Диски человеческим языком, детект Windows/другой ОС, двойное подтверждение wipe
+#   2. Разметка EFI + Btrfs, распаковка squashfs с ISO на диск
+#   3. Пользователь, загрузчик, оформление (KDE/Hypr/консоль) - всё сразу
 set -euo pipefail
 LOG=/tmp/falkon-install.log
 exec > >(tee -a "$LOG") 2>&1
@@ -17,6 +18,15 @@ live_device() {
   findmnt -n -o SOURCE /run/archiso/bootmnt 2>/dev/null || findmnt -n -o SOURCE / 2>/dev/null || echo ""
 }
 
+# Где лежит образ системы на ISO (для офлайн-копирования)
+find_sfs() {
+  local f
+  f=$(find /run/archiso/bootmnt -maxdepth 4 -name 'airootfs.sfs' 2>/dev/null | head -1 || true)
+  [[ -n "$f" ]] && { echo "$f"; return; }
+  err "Образ системы не найден. Грузись с ISO Falkon OS, а не с установленной системы."
+  exit 1
+}
+
 list_disks() { # вывод: /dev/sda|500G|Samsung_SSD|описание
   lsblk -d -n -o NAME,SIZE,MODEL,TRAN -e7,11 | while read -r name size model tran; do
     echo "/dev/$name|$size|${model:-диск}|$tran"
@@ -25,12 +35,10 @@ list_disks() { # вывод: /dev/sda|500G|Samsung_SSD|описание
 
 detect_os_on() { # $1=/dev/sda -> "Windows 11 (/dev/sda1)" или ""
   local disk="$1" out=""
-  # os-prober (лучший детект Windows/Linux)
   if command -v os-prober >/dev/null; then
     out=$(os-prober 2>/dev/null | grep "^$disk" || true)
     [[ -n "$out" ]] && { echo "$out" | tr '\n' '; '; return; }
   fi
-  # fallback: ищем NTFS с Windows + ext4/btrfs с Linux
   for part in $(lsblk -n -o PATH "$disk" 2>/dev/null | tail -n +2); do
     fst=$(lsblk -n -o FSTYPE "$part" 2>/dev/null || true)
     lbl=$(lsblk -n -o LABEL "$part" 2>/dev/null || true)
@@ -67,14 +75,13 @@ pick_disk_gui() {
   fi
 }
 
-do_install() { # $1=disk $2=user $3=pass $4=host $5=edition $6=lang
+do_install() { # $1=disk $2=user $3=pass $4=host $5=look $6=lang
   local DISK="$1" USER="$2" PASS="$3" HOST="$4" LOOK="$5" LANGCODE="$6"
   [[ "$LOOK" != "kde" && "$LOOK" != "hypr" && "$LOOK" != "cmd" ]] && LOOK="kde"
-  say "Ставлю на $DISK (оформление $LOOK, язык $LANGCODE)..."
-  # Имена разделов (nvme/mmcblk -> p1)
+  say "Ставлю Falkon OS на $DISK (оформление $LOOK, язык $LANGCODE)..."
   if [[ "$DISK" =~ nvme|mmcblk ]]; then EFI="${DISK}p1"; ROOT="${DISK}p2"; else EFI="${DISK}1"; ROOT="${DISK}2"; fi
 
-  say "[1/9] Очистка таблицы + разметка (EFI 1G + Btrfs корень)..."
+  say "[1/7] Разметка (EFI 1G + Btrfs корень)..."
   wipefs -a "$DISK"
   parted -s "$DISK" mklabel gpt mkpart ESP fat32 1MiB 1025MiB set 1 esp on mkpart primary btrfs 1025MiB 100% || { err "Разметка не удалась"; exit 1; }
   partprobe "$DISK"; sleep 2
@@ -83,111 +90,98 @@ do_install() { # $1=disk $2=user $3=pass $4=host $5=edition $6=lang
   mount "$ROOT" /mnt || { err "mount fail"; exit 1; }
   mkdir -p /mnt/boot; mount "$EFI" /mnt/boot || { err "mount EFI fail"; exit 1; }
 
-  say "[2/9] База (pacstrap)..."
-  pacstrap -K /mnt base base-devel linux-zen linux-firmware amd-ucode intel-ucode networkmanager sudo neovim git reflector zram-generator grub efibootmgr os-prober || { err "pacstrap fail, проверь интернет"; exit 1; }
-  genfstab -U /mnt >> /mnt/etc/fstab
+  say "[2/7] Копирую систему с ISO на диск (без интернета, ~5 минут)..."
+  SFS=$(find_sfs)
+  say "Образ: $SFS"
+  command -v unsquashfs >/dev/null || { err "Нет unsquashfs в Live. Перезапиши ISO."; exit 1; }
+  unsquashfs -f -d /mnt "$SFS" || { err "Распаковка не удалась (места хватит? надо ~12 ГБ)"; exit 1; }
 
-  say "[3/9] Язык/пользователь/загрузка..."
+  say "[3/7] Готовлю систему к первой загрузке..."
+  genfstab -U /mnt >> /mnt/etc/fstab
+  rm -f /mnt/etc/machine-id
+  arch-chroot /mnt systemd-machine-id-setup || true
+  rm -rf /mnt/var/lib/pacman/sync/* 2>/dev/null || true  # базы обновятся при первом pacman -Sy
+
+  say "[4/7] Ядро под установленный диск (свой initramfs, без live-крючков)..."
+  cat > /mnt/etc/mkinitcpio.conf <<'EOF'
+# Falkon OS - сгенерировано установщиком
+MODULES=()
+BINARIES=()
+FILES=()
+HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block filesystems fsck)
+EOF
+  mkdir -p /mnt/etc/mkinitcpio.d
+  cat > /mnt/etc/mkinitcpio.d/linux.preset <<'EOF'
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux"
+PRESETS=('default' 'fallback')
+default_image="/boot/initramfs-linux.img"
+fallback_image="/boot/initramfs-linux-fallback.img"
+fallback_options="-S autodetect"
+EOF
+  arch-chroot /mnt mkinitcpio -P || { err "mkinitcpio fail"; exit 1; }
+
+  say "[5/7] Язык, пользователь, сервисы..."
   arch-chroot /mnt /bin/bash <<EOF
 set -e
 ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
 hwclock --systohc
-echo "ru_RU.UTF-8 UTF-8" >> /etc/locale.gen
-echo "uk_UA.UTF-8 UTF-8" >> /etc/locale.gen
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen
-echo "fr_FR.UTF-8 UTF-8" >> /etc/locale.gen
-echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
-echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen
-echo "ja_JP.UTF-8 UTF-8" >> /etc/locale.gen
-echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen
-echo "ar_SA.UTF-8 UTF-8" >> /etc/locale.gen
-echo "hi_IN.UTF-8 UTF-8" >> /etc/locale.gen
-echo "tr_TR.UTF-8 UTF-8" >> /etc/locale.gen
+for l in ru_RU uk_UA en_US de_DE fr_FR es_ES zh_CN ja_JP pt_BR ar_SA hi_IN tr_TR; do
+  echo "\$l.UTF-8 UTF-8" >> /etc/locale.gen
+done
 locale-gen
 echo "LANG=$LANGCODE" > /etc/locale.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
 echo "$HOST" > /etc/hostname
 useradd -m -G wheel,video,audio,storage "$USER"
 echo "$USER:$PASS" | chpasswd
 echo "root:$PASS" | chpasswd
 echo "%wheel ALL=(ALL) ALL" > /etc/sudoers.d/wheel
 systemctl enable NetworkManager fstrim.timer
+systemctl enable falkon-update-apply.service || true
+echo "$LOOK" > /etc/falkon-look
 EOF
+  # Ключи pacman для установленной системы (интернет не обязателен, но если есть - быстрее)
+  arch-chroot /mnt pacman-key --init || true
+  arch-chroot /mnt pacman-key --populate archlinux || true
 
-  # Bootloader: UEFI -> systemd-boot, иначе GRUB (без багов на старых ПК и ВМ)
+  say "[6/7] Загрузчик..."
   if [[ -d /sys/firmware/efi ]]; then
-    say "[4/9] systemd-boot (UEFI)..."
     arch-chroot /mnt bootctl install
     UUID=$(blkid -s UUID -o value "$ROOT")
     cat > /mnt/boot/loader/entries/falkon.conf <<EOF2
-title Falkon OS ($LOOK)
-linux /vmlinuz-linux-zen
+title Falkon OS
+linux /vmlinuz-linux
 initrd /amd-ucode.img
 initrd /intel-ucode.img
-initrd /initramfs-linux-zen.img
+initrd /initramfs-linux.img
 options root=UUID=$UUID rw quiet splash
 EOF2
   else
-    say "[4/9] GRUB (BIOS/ВМ без EFI)..."
     arch-chroot /mnt grub-install --target=i386-pc "$DISK"
     arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
   fi
 
-  say "[5/9] Инструменты Falkon + драйверы + твики..."
-  # Все falkon-* в установленную систему (иначе там не будет ни тем, ни обновлений)
-  for t in /usr/bin/falkon-*; do cp -a "$t" /mnt/usr/bin/ 2>/dev/null || true; done
-  chmod 755 /mnt/usr/bin/falkon-* 2>/dev/null || true
-  mkdir -p /mnt/usr/share/falkon/themes /mnt/usr/share/applications /mnt/usr/lib/systemd/system
-  cp -a /usr/share/falkon/themes/. /mnt/usr/share/falkon/themes/ 2>/dev/null || true
-  cp -a /usr/share/falkon/lang.conf /mnt/usr/share/falkon/ 2>/dev/null || true
-  cp -a /usr/share/applications/falkon-*.desktop /mnt/usr/share/applications/ 2>/dev/null || true
-  cp -a /usr/lib/systemd/system/falkon-update-apply.service /mnt/usr/lib/systemd/system/ 2>/dev/null || true
-  # Штамп версии с Live (чтобы falkon-update знал, откуда обновляться)
-  cp -a /etc/falkon-release /mnt/etc/falkon-release 2>/dev/null || echo "FALKON_VERSION=unknown" > /mnt/etc/falkon-release
-  echo "$LOOK" > /mnt/etc/falkon-look
-  cp -a /etc/falkon-look /mnt/etc/falkon-look 2>/dev/null || true
+  say "[7/7] Оформление ($LOOK), драйверы, доп. софт..."
+  arch-chroot /mnt falkon-look "$LOOK" || true
   arch-chroot /mnt falkon-drivers --auto || true
   arch-chroot /mnt falkon-tweaks || true
-  arch-chroot /mnt systemctl enable falkon-update-apply.service || true
-
-  say "[6/9] Графика: ОБА стека сразу (KDE + Hyprland), оформление выберешь ниже..."
-  arch-chroot /mnt pacman -S --needed --noconfirm \
-    plasma-desktop plasma-nm plasma-pa plasma-workspace sddm \
-    dolphin konsole kate ark gwenview okular kdeconnect print-manager yakuake spectacle \
-    kvantum breeze-gtk \
-    hyprland hyprpaper hyprlock hypridle hyprpicker xdg-desktop-portal-hyprland \
-    waybar wofi rofi-wayland kitty alacritty mako swaync grim slurp swappy wl-clipboard cliphist \
-    thunar thunar-volman thunar-archive-plugin tumbler file-roller \
-    ghostty firefox firefox-i18n-ru code lutris mangohud gamemode vlc elisa gimp mpv imv \
-    zathura zathura-pdf-mupdf pavucontrol helvum \
-    nwg-look lxappearance qt5ct qt6ct kvantum-qt5 papirus-icon-theme \
-    ttf-jetbrains-mono-nerd ttf-fira-code noto-fonts noto-fonts-emoji otf-font-awesome \
-    yad fastfetch mesa vulkan-icd-loader libva-mesa-driver \
-    nodejs npm || true
-
-  say "[7/9] yay (AUR) + AI-ассистенты (Claude Code, Codex)..."
-  arch-chroot /mnt /bin/bash <<EOF3 || true
+  # yay + AI только если есть интернет, иначе пропускаем (доставишь через welcome)
+  if curl -sSL --max-time 10 https://github.com >/dev/null 2>&1; then
+    say "Есть интернет: ставлю yay + Claude Code + Codex..."
+    arch-chroot /mnt /bin/bash <<EOF3 || say "Доп. софт пропущен, доставишь через falkon-welcome."
 set -e
-echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-falkon-tmp
 cd /tmp
 rm -rf yay-bin
-sudo -u "$USER" git clone --depth=1 https://aur.archlinux.org/yay-bin.git
-cd yay-bin
-sudo -u "$USER" makepkg -si --noconfirm
-rm -f /etc/sudoers.d/99-falkon-tmp
-npm i -g @anthropic-ai/claude-code @openai/codex
-echo "AI: claude + codex установлены (запуск: claude / codex)"
+curl -sSL --max-time 60 "https://api.github.com/repos/Jguer/yay/releases/latest" | grep -o '"browser_download_url": *"[^"]*x86_64.tar.gz"' | head -1 | cut -d'"' -f4 | xargs -I{} curl -sSL --max-time 120 {} -o yay.tar.gz
+tar xzf yay.tar.gz
+install -m755 yay /usr/local/bin/yay
+npm i -g @anthropic-ai/claude-code @openai/codex || true
 EOF3
+  else
+    say "Интернета нет - пропускаю yay и AI (потом: falkon-welcome)."
+  fi
 
-  say "[8/9] Оформление по умолчанию: $LOOK..."
-  arch-chroot /mnt falkon-look "$LOOK" || {
-    # запасной путь без falkon-look (если что-то пошло не так с копированием)
-    if [[ "$LOOK" == "cmd" ]]; then arch-chroot /mnt systemctl disable sddm || true
-    else arch-chroot /mnt systemctl enable sddm || true; fi
-    echo "$LOOK" > /mnt/etc/falkon-look
-  }
-
-  say "[9/9] Финал..."
   umount -R /mnt
   say "ГОТОВО. Вытащи флешку и перезагрузись. Логин: $USER. Лог: $LOG"
 }
@@ -200,19 +194,18 @@ main() {
   FOUND=$(detect_os_on "$DISK")
   if [[ -n "$FOUND" ]]; then
     say "На $DISK замечено: $FOUND"
-    if ! confirm_gui "На диске $DISK найдено:\n$FOUND\n\n<b>Очистить ВЕСЬ диск и поставить Falkon?</b>\nВсё на нём будет удалено!"; then
+    if ! confirm_gui "На диске $DISK найдено:\n$FOUND\n\n<b>Очистить ВЕСЬ диск и поставить Falkon OS?</b>\nВсё на нём будет удалено!"; then
       say "Отмена. Выбери другой диск."; exit 0
     fi
-    # двойное подтверждение wipe (защита от случайного клика)
     if ! confirm_gui "Точно-точно стереть <b>$DISK</b>? Это последнее предупреждение."; then
       say "Отмена."; exit 0
     fi
   else
-    confirm_gui "Ставить Falkon на <b>$DISK</b>?\nДиск будет очищен." || exit 0
+    confirm_gui "Ставить Falkon OS на <b>$DISK</b>?\nСистема скопируется с ISO, диск будет очищен." || exit 0
   fi
   # Данные пользователя + оформление (ОДНА система, три лица)
   if command -v yad >/dev/null && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
-    vals=$(yad --form --title="Пользователь Falkon" --text="Придумай пользователя + выбери оформление:" --field="Имя пользователя" "falkon" --field="Имя ПК" "falkon-pc" --field="Оформление:CB" "Классика (KDE)!Тайлинг (Hyprland)!Консоль (без графики)" --field="Язык:CB" "ru_RU.UTF-8!uk_UA.UTF-8!en_US.UTF-8!zh_CN.UTF-8!ja_JP.UTF-8!es_ES.UTF-8!fr_FR.UTF-8!de_DE.UTF-8" --field="Пароль:H" "")
+    vals=$(yad --form --title="Falkon OS - установка" --text="Придумай пользователя + выбери оформление:" --field="Имя пользователя" "falkon" --field="Имя ПК" "falkon-pc" --field="Оформление:CB" "Классика (KDE)!Тайлинг (Hyprland)!Консоль (без графики)" --field="Язык:CB" "ru_RU.UTF-8!uk_UA.UTF-8!en_US.UTF-8!zh_CN.UTF-8!ja_JP.UTF-8!es_ES.UTF-8!fr_FR.UTF-8!de_DE.UTF-8" --field="Пароль:H" "")
     [[ -z "$vals" ]] && exit 0
     IFS='|' read -r USER HOST LOOKNAME LANGCODE PASS <<< "$vals"
     case "$LOOKNAME" in "Тайлинг"*) LOOK="hypr";; "Консоль"*) LOOK="cmd";; *) LOOK="kde";; esac
@@ -225,7 +218,7 @@ main() {
     [[ -z "$PASS" ]] && { err "Пустой пароль нельзя"; exit 1; }
   fi
   do_install "$DISK" "$USER" "$PASS" "$HOST" "$LOOK" "$LANGCODE"
-  command -v yad >/dev/null && yad --info --text="Готово! Перезагрузись." --timeout=5 || true
+  command -v yad >/dev/null && yad --info --text="Готово! Вытащи флешку и перезагрузись." --timeout=5 || true
 }
 
 main

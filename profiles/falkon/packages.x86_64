@@ -51,9 +51,8 @@ code
 lutris
 mangohud
 gamemode
-vlc
-elisa
-gimp
+# vlc/elisa/gimp убраны из ISO (лимит релиза 2 ГБ): mpv остаётся и всё играет,
+# остальное в 1 клик через falkon-welcome -> "Офис и медиа"
 mpv
 imv
 zathura

@@ -17,7 +17,7 @@ enable_chaotic() {
   sudo pacman -Sy
 }
 tweak_perf() { sudo falkon-tweaks; }
-install_office() { sudo pacman -S --needed --noconfirm libreoffice-fresh libreoffice-fresh-ru thunderbird krita; }
+install_office() { sudo pacman -S --needed --noconfirm libreoffice-fresh libreoffice-fresh-ru thunderbird krita gimp vlc elisa; }
 install_fun() { sudo pacman -S --needed --noconfirm discord telegram-desktop steam obs-studio; }
 
 menu_tui() {
@@ -36,7 +36,7 @@ menu_tui() {
     echo "10) Язык (12 встроенных)"
     echo "11) Обновить систему (с GitHub)"
     echo "12) Сменить оформление (KDE/Hypr/консоль)"
-    echo "13) Офис (libreoffice/thunderbird/krita)"
+    echo "13) Офис и медиа (libreoffice/gimp/vlc...)"
     echo "14) Связь и стримы (discord/telegram/steam/obs)"
     echo "0) Выход"
     read -rp "> " c
@@ -78,7 +78,7 @@ menu_gui() {
       "Язык (12)") falkon-lang gui ;;
       "Обновить систему") xterm -e "sudo falkon-update; read -p Done" ;;
       "Оформление") falkon-look gui ;;
-      "Офис") xterm -e "sudo pacman -S --needed libreoffice-fresh libreoffice-fresh-ru thunderbird krita; read -p Done" ;;
+      "Офис") xterm -e "sudo pacman -S --needed libreoffice-fresh libreoffice-fresh-ru thunderbird krita gimp vlc elisa; read -p Done" ;;
       "Связь и стримы") xterm -e "sudo pacman -S --needed discord telegram-desktop steam obs-studio; read -p Done" ;;
       "Связь и стримы") xterm -e "sudo pacman -S --needed discord telegram-desktop steam obs-studio; read -p Done" ;;
       *) exit 0 ;;

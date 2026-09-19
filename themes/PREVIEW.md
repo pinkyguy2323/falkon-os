@@ -25,7 +25,7 @@ falkon-customizer               # пресеты сами берут тему п
 ```
 
 ## Софт: в ISO лёгкое, тяжёлое в 1 клик
-- **В ISO:** ghostty, kitty, vscode (`code`), firefox, lutris, mangohud, vlc, elisa, gimp,
-  mpv, imv, zathura, thunar, dolphin + Claude Code и Codex (через npm в установщике).
-- **В 1 клик (falkon-welcome):** «Офис» (libreoffice, thunderbird, krita),
+- **В ISO:** ghostty, kitty, vscode (`code`), firefox, lutris, mangohud, mpv, imv, zathura,
+  thunar, dolphin + Claude Code и Codex (через npm в установщике).
+- **В 1 клик (falkon-welcome):** «Офис и медиа» (libreoffice, thunderbird, krita, gimp, vlc, elisa),
   «Связь и стримы» (discord, telegram, steam, obs). Причина: лимит файла релиза GitHub 2 ГБ.
